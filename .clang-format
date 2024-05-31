@@ -1,0 +1,81 @@
+---
+Language: Cpp
+BasedOnStyle: LLVM
+AccessModifierOffset: -8
+AlignConsecutiveAssignments: true
+AlignConsecutiveDeclarations: true
+AlignOperands: Align
+AlignTrailingComments:
+        Kind: Always
+        OverEmptyLines: 8
+RemoveBracesLLVM: true
+IndentWrappedFunctionNames: true
+AllowShortFunctionsOnASingleLine: None
+AllowAllArgumentsOnNextLine: false
+AllowAllConstructorInitializersOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: false
+AllowShortBlocksOnASingleLine: true
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse
+AllowShortLoopsOnASingleLine: true
+AlwaysBreakAfterDefinitionReturnType: false
+AlwaysBreakTemplateDeclarations: No
+BinPackArguments: false
+BinPackParameters: false
+BraceWrapping:
+        AfterCaseLabel: false
+        AfterClass: false
+        AfterControlStatement: false
+        AfterEnum: true
+        AfterFunction: true
+        AfterNamespace: false
+        AfterStruct: true
+        AfterUnion: true
+        AfterExternBlock: false
+        BeforeCatch: false
+        BeforeElse: false
+        BeforeLambdaBody: false
+        BeforeWhile: false
+        SplitEmptyFunction: false
+        AfterObjCDeclaration: false
+        IndentBraces: false
+        SplitEmptyRecord: false
+        SplitEmptyNamespace: false
+BreakBeforeBraces: Linux
+BreakConstructorInitializersBeforeComma: false
+BreakInheritanceList: AfterColon
+ColumnLimit: 150
+CompactNamespaces: true
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+ContinuationIndentWidth: 16
+IncludeCategories:
+        -       Regex: '^<.*/.*'
+                Priority: 5
+        -       Regex: '^<.*'
+                Priority: 6
+        -       Regex: '^".*'
+                Priority: 1
+        -       Regex: '.*'
+                Priority: 1
+IncludeIsMainRegex: '([-_](test|unittest))?$'
+IndentCaseLabels: true
+IndentPPDirectives: AfterHash
+IndentWidth: 8
+InsertNewlineAtEOF: true
+MacroBlockBegin: '^REGIONB$'
+MacroBlockEnd: '^REGIONE$'
+NamespaceIndentation: All
+PointerAlignment: Left
+ReflowComments: false
+SpaceAfterTemplateKeyword: false
+SpaceInEmptyParentheses: true
+SpacesInAngles: Always
+SpacesInConditionalStatement: true
+SpacesInCStyleCastParentheses: true
+SpacesInParentheses: true
+SpacesInSquareBrackets: true
+UseTab: Always
+CommentPragmas: '^<-.*$'
+SortIncludes: CaseSensitive
+IncludeBlocks: Preserve
+...

@@ -66,11 +66,13 @@ find_package( alpaca CONFIG REQUIRED )
 find_package( fmt CONFIG REQUIRED )
 find_package( ftxui CONFIG REQUIRED )
 find_package( argh CONFIG REQUIRED )
+find_package( unofficial-pdcurses CONFIG REQUIRED )
 target_link_libraries( configure PRIVATE
                        argh
                        ctre::ctre
                        alpaca::alpaca
                        fmt::fmt
+                       unofficial::pdcurses::pdcurses
                        ftxui::dom ftxui::screen ftxui::component
                        )
 

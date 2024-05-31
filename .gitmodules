@@ -1,0 +1,3 @@
+[submodule "third-party/Fungal-UI"]
+	path = third-party/Fungal-UI
+	url = git@github.com:user-simon/Fungal-UI.git
