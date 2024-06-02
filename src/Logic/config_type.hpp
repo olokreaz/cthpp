@@ -34,7 +34,7 @@ namespace Logic
 		      value( std::move( value ) ),
 		      type( type )
 		{
-			// todo validate all
+
 		}
 	};
 
