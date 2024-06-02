@@ -49,6 +49,7 @@ elseif ( ${LINUX} )
 	                     -mavx
 	                     -fopenmp )
 endif ()
+
 add_compile_definitions(
 	UNICODE
 	_UNICODE
@@ -56,8 +57,15 @@ add_compile_definitions(
 	NOMINMAX
 	)
 
+
 add_executable( configure
                 src/main.cpp
+                #[[ Logic ]]
+                src/Logic/config.cpp
+                src/Logic/config.hpp
+                src/Logic/config_type.hpp
+                src/Logic/worker.hpp
+                src/Logic/worker.cpp
                 )
 
 # this is heuristically generated, and may not be correct
@@ -66,13 +74,12 @@ find_package( alpaca CONFIG REQUIRED )
 find_package( fmt CONFIG REQUIRED )
 find_package( ftxui CONFIG REQUIRED )
 find_package( argh CONFIG REQUIRED )
-find_package( unofficial-pdcurses CONFIG REQUIRED )
+
 target_link_libraries( configure PRIVATE
                        argh
                        ctre::ctre
                        alpaca::alpaca
                        fmt::fmt
-                       unofficial::pdcurses::pdcurses
                        ftxui::dom ftxui::screen ftxui::component
                        )
 

@@ -1,51 +1,75 @@
-#include <curses.h>
-#include <string>
+#include <fui/fui.h>
+#include <filesystem>
 #include <thread>
+#include <unordered_map>
+#include <vector>
+
+#include "Logic/config.hpp"
+#include "Logic/worker.hpp"
+
+namespace fui = fungal;
+using fui::ui;
+
+GLobalState g_state{ "", std::filesystem::current_path( ).string( ), "", std::filesystem::current_path( ).string( ), "", Config( "global" ) };
 
 int main( )
 {
-	initscr( );		// Initialize the library
-	cbreak( );		// Line buffering disabled
-	keypad( stdscr, TRUE ); // We get F1, F2 etc..
-	noecho( );		// Don't echo() while we do getch
+	ui.init( );
 
-	// Enable mouse events
-	mousemask( ALL_MOUSE_EVENTS, NULL );
+	Worker worker;
 
-	int height, width, start_y, start_x;
-	height	= 10;
-	width	= 40;
-	start_y = ( LINES - height ) / 2;			 // Calculating for a center placement of the window
-	start_x = ( COLS - width ) / 2;				 // Calculating for a center placement of the window
+	{
+		auto* page = new fui::page( "menu[start]", "Menu" );
 
-	WINDOW* win = newwin( height, width, start_y, start_x ); // Create a new window
-	box( win, 0, 0 );					 // Set the window borders
-
-	int ch = 0;
-
-	std::thread t1( [ & ]( ) {
-		MEVENT event;
-		while ( ch != 'q' ) {
-			ch = getch( );				 // Get the user input
-			if ( ch == KEY_MOUSE ) {
-				if ( auto x = getmouse( ); ) {
-					// Print the mouse position
-					mvwprintw( win, 1, 1, "Mouse at: %d, %d", event.x, event.y );
-					wrefresh( win );
-				}
-			}
+		{ // Main Menu
+			*page << new fui::button( "btn[new project]", "New Project", [ & ]( fui::control* c ) {
+				worker.state( Worker::ProgramState::kNewProject );
+				worker.work = [ & ]( ) -> std::optional< std::string > {
+					std::this_thread::sleep_for( std::chrono::seconds( 1 ) );
+					return "menu[new project]";
+				};
+				worker.flag( Worker::Interrupt::WorkerGet );
+				worker.wait( );
+				ui.display( worker.next_page( ) );
+			} );
+			*page << new fui::button( "btn[open project]", "Open Project", [ & ]( fui::control* c ) {
+				worker.state( Worker::ProgramState::kOpenProject );
+			} );
+			*page << new fui::button( "btn[exit]", "Exit", [ & ]( fui::control* c ) {
+				worker.flag( Worker::Interrupt::kStopWorker );
+				ui.exit( );
+			} );
 		}
-	} );
-	while ( ch != 'q' ) {
-		std::this_thread::sleep_for( std::chrono::milliseconds( 10 ) ); // Sleep for 10 milliseconds
-		std::string title	  = "Program Title";
-		int	    title_start_x = ( width - title.size( ) ) / 2;	// Calculate the start position of the title
-		mvwprintw( win, 0, title_start_x, title.c_str( ) );		// Print the title on the window
-		wrefresh( win );						// Refresh the window
+
+		ui << page;
+		ui.display( page );
 	}
 
-	t1.join( );
-	endwin( );								// End curses mode
+	{	  // Create Project
+		auto* page = new fui::page( "menu[new project]", "New Project" );
 
-	return 0;
+		{ // Project Name
+			*page << new fui::textfield( "txt[project name]", "Project name" );
+		}
+
+		{ // Project Location
+			*page << new fui::textfield( "txt[project dir]", "Project Location" );
+		}
+
+		{ // Create
+			*page << new fui::button( "btn[create]", "Create", [ & ]( fui::control* c ) {
+				worker.flag( Worker::Interrupt::WorkerGet );
+				worker.wait( );
+				ui.display( worker.next_page( ) );
+			} );
+		}
+
+		{ // Back
+			*page << new fui::button( "btn[back]", "Back", [ & ]( fui::control* c ) { ui.display( worker.next_page( ) ); } );
+		}
+		ui << page;
+	}
+
+	ui.exec( );
+	worker.join( );
 }
