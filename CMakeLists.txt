@@ -57,30 +57,36 @@ add_compile_definitions(
 	NOMINMAX
 	)
 
-
 add_executable( configure
-                src/main.cpp
-                #[[ Logic ]]
-                src/Logic/config.cpp
-                src/Logic/config.hpp
-                src/Logic/config_type.hpp
-                src/Logic/worker.hpp
-                src/Logic/worker.cpp
-                )
+                src/main.cpp )
 
-# this is heuristically generated, and may not be correct
+
 find_package( ctre CONFIG REQUIRED )
-find_package( alpaca CONFIG REQUIRED )
 find_package( fmt CONFIG REQUIRED )
-find_package( ftxui CONFIG REQUIRED )
 find_package( argh CONFIG REQUIRED )
+find_package( nlohmann_json CONFIG REQUIRED )
+find_package( hjson CONFIG REQUIRED )
+find_package( mstch CONFIG REQUIRED )
+
+find_package( LLVM CONFIG REQUIRED )
+list( APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}" )
+include( HandleLLVMOptions )
+add_definitions( ${LLVM_DEFINITIONS} )
+target_include_directories( configure PRIVATE ${LLVM_INCLUDE_DIRS} )
+
+llvm_map_components_to_libnames( llvm_libs support core tablegen )
+
+message( STATUS "LLVM_LIBS: ${llvm_libs}" )
+
+target_link_libraries( configure PRIVATE ${llvm_libs} )
+
 
 target_link_libraries( configure PRIVATE
                        argh
                        ctre::ctre
-                       alpaca::alpaca
-                       fmt::fmt
-                       ftxui::dom ftxui::screen ftxui::component
+                       mstch::mstch
+                       fmt::fmt-header-only
+                       hjson
                        )
 
 # this is heuristically generated, and may not be correct
