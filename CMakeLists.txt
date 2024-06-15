@@ -4,6 +4,7 @@ project( GenerationCompileTimeConfig )
 set( CMAKE_CXX_STANDARD 23 )
 set( CMAKE_EXPORT_COMPILE_COMMANDS ON )
 
+
 message( STATUS "~ ~ ~ ~ ~ ${PROJECT_NAME} ~ ~ ~ ~ ~" )
 
 if ( DEV )
