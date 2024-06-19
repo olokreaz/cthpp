@@ -58,16 +58,26 @@ add_compile_definitions(
 	NOMINMAX
 	)
 
+if ( CMAKE_BUILD_TYPE STREQUAL "Debug" )
+	add_compile_definitions( _DEBUG DEBUG )
+else ()
+	add_compile_definitions( NDEBUG )
+endif ()
+
 add_executable( configure
-                src/main.cpp )
+                src/main.cpp
+                include/olokreaz/FileGeneration/HeaderGenerator.hpp
+                src/FileGeneration/HeaderGeneration.cpp
+                )
 
 
 find_package( ctre CONFIG REQUIRED )
 find_package( fmt CONFIG REQUIRED )
 find_package( argh CONFIG REQUIRED )
-find_package( nlohmann_json CONFIG REQUIRED )
 find_package( hjson CONFIG REQUIRED )
-find_package( mstch CONFIG REQUIRED )
+
+find_package( GSL REQUIRED )
+
 
 find_package( LLVM CONFIG REQUIRED )
 list( APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}" )
@@ -81,13 +91,14 @@ message( STATUS "LLVM_LIBS: ${llvm_libs}" )
 
 target_link_libraries( configure PRIVATE ${llvm_libs} )
 
+include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/include )
 
 target_link_libraries( configure PRIVATE
                        argh
                        ctre::ctre
-                       mstch::mstch
                        fmt::fmt-header-only
                        hjson
+                       GSL::gsl GSL::gslcblas
                        )
 
 # this is heuristically generated, and may not be correct
