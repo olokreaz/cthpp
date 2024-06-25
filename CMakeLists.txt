@@ -34,12 +34,10 @@ if ( ${WIN32} )
 		/GR
 		/GA
 		/wd4996
-		/arch:AVX
 		/openmp
 		/FS
-		
-		${RELEASE_COMPILE_OPTIONS}
 		)
+	#	add_link_options( /FORCE:UNRESOLVED )
 elseif ( ${LINUX} )
 	add_compile_options( -finput-charset=UTF-8
 	                     -fexceptions
@@ -47,7 +45,6 @@ elseif ( ${LINUX} )
 	                     -frtti
 	                     -fexceptions
 	                     -Wno-deprecated-declarations
-	                     -mavx
 	                     -fopenmp )
 endif ()
 
@@ -70,37 +67,61 @@ add_executable( configure
                 src/FileGeneration/HeaderGeneration.cpp
                 )
 
+set_target_properties( configure PROPERTIES
+                       MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL"
+                       
+                       )
 
 find_package( ctre CONFIG REQUIRED )
 find_package( fmt CONFIG REQUIRED )
 find_package( argh CONFIG REQUIRED )
 find_package( hjson CONFIG REQUIRED )
 
-find_package( GSL REQUIRED )
-
+find_package( frozen CONFIG REQUIRED )
 
 find_package( LLVM CONFIG REQUIRED )
+find_package( Clang CONFIG REQUIRED )
+
 list( APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}" )
+message( STATUS "LLVM_CMAKE_DIR: ${LLVM_CMAKE_DIR}" )
+
 include( HandleLLVMOptions )
 add_definitions( ${LLVM_DEFINITIONS} )
 target_include_directories( configure PRIVATE ${LLVM_INCLUDE_DIRS} )
 
-llvm_map_components_to_libnames( llvm_libs support core tablegen )
-
-message( STATUS "LLVM_LIBS: ${llvm_libs}" )
+llvm_map_components_to_libnames( llvm_libs
+                                 support core irreader analysis
+                                 )
 
 target_link_libraries( configure PRIVATE ${llvm_libs} )
+
 
 include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/include )
 
 target_link_libraries( configure PRIVATE
                        argh
                        ctre::ctre
-                       fmt::fmt-header-only
+                       fmt::fmt
                        hjson
-                       GSL::gsl GSL::gslcblas
+                       
+                       #frozen::frozen frozen::frozen-headers
+                       
+                       clangTooling
+                       clangBasic
+                       clangAST
+                       clangASTMatchers
+                       clangAnalysis
+                       clangCodeGen
+                       clangDynamicASTMatchers
+                       #                       clangFronted
+                       clangFormat
+                       #                       clangFrontedTool
+                       clangHandleCXX
+                       clangHandleLLVM
+                       clangLex
+                       clangParse
+                       clangRewrite
+                       clangSupport
+                       clangToolingSyntax
+                       clangTransformer
                        )
-
-# this is heuristically generated, and may not be correct
-
-
