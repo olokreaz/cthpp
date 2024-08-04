@@ -100,11 +100,14 @@ include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/include )
 
 target_link_libraries( configure PRIVATE
                        argh
+                       jsoncons
                        ctre::ctre
                        fmt::fmt
                        hjson
                        
                        #frozen::frozen frozen::frozen-headers
+                       unofficial::libgit2::libgit2
+                       libassert::assert
                        
                        clangTooling
                        clangBasic

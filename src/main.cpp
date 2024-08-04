@@ -77,6 +77,12 @@ public:
 			default: throw std::logic_error( "Unknown type" );
 		}
 	}
+	[[nodiscard]] QualType GetType( const Types tp )
+	{
+		DEBUG_ASSERT( e_type::contains( tp ) );
+		auto sQualName = FIX8::conjure_enum< Types >::enum_to_string( static_cast< decltype( Types( ) ) >( tp ) );
+		return GetType( sQualName );
+	}
 
 	template< class T > QualType build( T& val )
 	{
@@ -176,60 +182,86 @@ public:
 	}
 };
 
-int main( )
+NamespaceDecl* CreateNamespace( llvm::StringRef name, ASTContext& ctx, DeclContext* dcctx )
 {
-	CompilerInstance* ci	       = createCompilerInstance( );
-	ASTContext&	  context      = ci->getASTContext( );
-	auto		  global_scope = context.getTranslationUnitDecl( );
+	NamespaceDecl* ns_global =
+			NamespaceDecl::Create( ctx, dcctx, false, SourceLocation( ), SourceLocation( ), &ctx.Idents.get( name ), nullptr, true );
 
-	// Создание пространства имен
-	NamespaceDecl* namespaceDecl = NamespaceDecl::Create( context,
-							      context.getTranslationUnitDecl( ),
-							      false,
-							      SourceLocation( ),
-							      SourceLocation( ),
-							      &context.Idents.get( "config" ),
-							      nullptr,
-							      true );
+	return ns_global;
+}
 
-	global_scope->addDecl( namespaceDecl );
-
-	// Создание переменной int myVar;
-	const auto tp		 = context.getPointerType( context.getConstType( context.CharTy ) );
-	QualType   constCharType = context.getConstType( context.CharTy );
-	QualType   arrayType	 = context.getStringLiteralArrayType( constCharType, 13 );
-	QualType   pcharType	 = context.getPointerType( context.CharTy );
-	VarDecl*   varDecl	 = VarDecl::Create( context,
-					    namespaceDecl,
-					    SourceLocation( ),
-					    SourceLocation( ),
-					    &context.Idents.get( "myVar" ),
-					    pcharType,
-					    nullptr,
-					    SC_None );
+void createVar( ASTContext& ctx, NamespaceDecl* ns, const llvm::StringRef name, const QualType type, Expr* init )
+{
+	VarDecl* varDecl = VarDecl::Create( ctx, ns, SourceLocation( ), SourceLocation( ), &ctx.Idents.get( name ), type, nullptr, SC_None );
 
 	varDecl->setConstexpr( true );
+	varDecl->setInit( init );
 
-	// Создание значения по умолчанию
-	StringLiteral* defaultVal =
-			StringLiteral::Create( context, "Hello, World!", StringLiteral::StringKind::UTF8, false, arrayType, SourceLocation( ) );
+	ns->addDecl( varDecl );
+}
 
-	// Установка значения по умолчанию для переменной
-	varDecl->setInit( defaultVal );
+#include <jsoncons/json.hpp>
+
+using json = jsoncons::json;
+
+namespace ConfParser
+{
+	struct Project {
+		std::string name;
+		std::string desc;
+		std::string output_name;
+		std::string version;
+		std::string git_hash;
+	};
+
+	/*
+	 {
+		project: {
+			..
+		},
+	 }
+	 */
+	Project parse( const json& j )
+	{
+		Project project;
+
+		const auto& j_project = j[ "project" ];
+
+		project.name	    = j_project[ "name" ].as< std::string >( );
+		project.desc	    = j_project[ "desc" ].as< std::string >( );
+		project.output_name = j_project[ "output_name" ].as< std::string >( );
+		project.version	    = j_project[ "version" ].as< std::string >( );
+		project.git_hash    = j_project[ "git_hash" ].as< std::string >( );
+
+		return project;
+	}
+
+} // namespace ConfParser
+
+int main( int argc, char** argv )
+{
+	CompilerInstance*    ci		  = createCompilerInstance( );
+	ASTContext&	     context	  = ci->getASTContext( );
+	TranslationUnitDecl* global_scope = context.getTranslationUnitDecl( );
+
+	const argh::parser opt( argc, argv );
+
+	// Создание пространства имен
+	NamespaceDecl* ns_global_config = CreateNamespace( opt( { "-ns", "--global-namespace" }, "config" ).view( ), context, global_scope );
+
+	DEBUG_ASSERT( ns_global_config );
+
+	NamespaceDecl* namespaceProject = CreateNamespace( "project", context, ns_global_config );
+	ns_global_config->addDecl( namespaceProject );
 
 	// Добавление класса в пространство имен
-	namespaceDecl->addDecl( varDecl );
+	createVar( context,
+		   ns_global_config,
+		   "myVar",
+		   TypeBuilder( context ).GetType( TypeBuilder::Types::string ),
+		   TypeBuilder( context ).BuildInitStatement( TypeBuilder::Types::string, "Hello World Chiki puki" ) );
 
-	NamespaceDecl* namespaceProject = NamespaceDecl::Create( context,
-								 namespaceDecl,
-								 false,
-								 SourceLocation( ),
-								 SourceLocation( ),
-								 &context.Idents.get( "project" ),
-								 nullptr,
-								 true );
-
-	namespaceDecl->addDecl( namespaceProject );
+	global_scope->addDecl( ns_global_config );
 
 	// Вывод сгенерированного кода
 	LangOptions    langOpts;
@@ -237,9 +269,7 @@ int main( )
 
 	global_scope->print( llvm::outs( ), policy );
 
-	llvm::outs( ) << "\n";
-
 	delete ci;
 
 	return 0;
-}
+} // namespace ConfHJsonint main(intargc,char**argv)
