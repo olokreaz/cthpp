@@ -8,17 +8,61 @@
 #include <clang/Basic/SourceManager.h>
 #include <clang/Basic/TargetInfo.h>
 #include <clang/Frontend/ASTConsumers.h>
+#include <clang/Frontend/ASTUnit.h>
 #include <clang/Frontend/CompilerInstance.h>
 #include <clang/Frontend/FrontendActions.h>
 #include <clang/Frontend/Utils.h>
 #include <clang/Tooling/Tooling.h>
-#include <hjson.h>
+#include <llvm/ADT/APFixedPoint.h>
+
+#include <conjure_enum.hpp>
 
 #include <algorithm>
 #include <iostream>
 #include <variant>
 
+#include <libassert/assert.hpp>
+#include <argh.h>
+#include <git2.h>
+#include <windows.h>
+
 using namespace clang;
+
+std::string getHashGitCommit( )
+{
+	static std::string hash;
+	if ( !hash.empty( ) ) return hash;
+	std::string c_path;
+	c_path.resize( MAX_PATH );
+	c_path.resize( GetCurrentDirectoryA( MAX_PATH, c_path.data( ) ) );
+
+	git_libgit2_init( );
+
+	git_repository* repo = nullptr;
+
+	if ( const int er = git_repository_open( &repo, c_path.data( ) ) ) {
+		git_libgit2_shutdown( );
+		const git_error* err = giterr_last( );
+		llvm::errs( ) << "Error: " << er << " " << ( err && err->message ? err->message : "Uknown error" ) << "\n";
+		return { };
+	}
+
+	git_oid oid;
+	git_reference_name_to_id( &oid, repo, "HEAD" );
+
+	git_commit* cmt = nullptr;
+	git_commit_lookup( &cmt, repo, &oid );
+	hash.resize( 8 );
+	git_oid_tostr( hash.data( ), 8, &oid );
+
+	git_commit_free( cmt );
+	git_repository_free( repo );
+	git_libgit2_shutdown( );
+
+	llvm::outs( ) << c_path << ": last git commit Hash: " << hash << "\n";
+
+	return hash;
+}
 
 // Создание и настройка компилятора
 CompilerInstance* createCompilerInstance( )
@@ -40,145 +84,121 @@ CompilerInstance* createCompilerInstance( )
 
 namespace common
 {
-	constexpr size_t constHash( const std::string_view input )
+	constexpr size_t const_hash( const std::string_view input )
 	{
-		return input.empty( ) ? 0 : input[ 0 ] + 33 * constHash( input.substr( 1 ) );
+		return input.empty( ) ? 0 : input[ 0 ] + 33 * const_hash( input.substr( 1 ) );
 	}
 } // namespace common
 
 class TypeBuilder
 {
-	ASTContext& context_;
+public:
+	enum class Types : uint8_t {
+		none = 0,
 
-	QualType						    QuTy_;
-	std::variant< std::string, int32_t, int64_t, bool, int8_t > vvalue_;
+		boolean = 1,
+
+		i8,
+		u8,
+
+		i16,
+		u16,
+
+		i32,
+		u32,
+
+		i64,
+		u64,
+
+		f32,
+		f64,
+
+		string,
+	};
+	using e_type = FIX8::conjure_enum< Types >;
+
+private:
+	ASTContext& ctx_;
 
 public:
-	explicit TypeBuilder( ASTContext& context ) : context_( context )
+	explicit TypeBuilder( ASTContext& context ) : ctx_( context )
 	{
 	}
 
-	[[nodiscard]] QualType build( const std::string_view typeName )
+	[[nodiscard]] QualType GetType( const std::string_view typeName )
 	{
-		switch ( common::constHash( typeName ) ) {
-			case common::constHash( "bool" ): return QuTy_ = context_.BoolTy;
-			case common::constHash( "i8" ): return QuTy_ = context_.CharTy;
-			case common::constHash( "u8" ): return QuTy_ = context_.UnsignedCharTy;
-			case common::constHash( "i16" ): return QuTy_ = context_.ShortTy;
-			case common::constHash( "u16" ): return QuTy_ = context_.UnsignedShortTy;
-			case common::constHash( "i32" ): return QuTy_ = context_.IntTy;
-			case common::constHash( "u32" ): return QuTy_ = context_.UnsignedIntTy;
-			case common::constHash( "i64" ): return QuTy_ = context_.LongLongTy;
-			case common::constHash( "u64" ): return QuTy_ = context_.UnsignedLongLongTy;
-			case common::constHash( "f32" ): return QuTy_ = context_.FloatTy;
-			case common::constHash( "f64" ): return QuTy_ = context_.DoubleTy;
-			case common::constHash( "cstr" ): return QuTy_ = context_.getPointerType( context_.CharTy );
-
-			default: throw std::logic_error( "Unknown type" );
-		}
+		auto tp = e_type::unscoped_string_to_enum( typeName ).value_or( Types::none );
+		return GetType( tp );
 	}
 	[[nodiscard]] QualType GetType( const Types tp )
 	{
-		DEBUG_ASSERT( e_type::contains( tp ) );
-		auto sQualName = FIX8::conjure_enum< Types >::enum_to_string( static_cast< decltype( Types( ) ) >( tp ) );
-		return GetType( sQualName );
-	}
+		switch ( tp ) {
+			case Types::boolean: return ctx_.BoolTy;
+			case Types::i8: return ctx_.CharTy;
+			case Types::u8: return ctx_.UnsignedCharTy;
+			case Types::i16: return ctx_.ShortTy;
+			case Types::u16: return ctx_.UnsignedShortTy;
+			case Types::i32: return ctx_.IntTy;
+			case Types::u32: return ctx_.UnsignedIntTy;
+			case Types::i64: return ctx_.LongLongTy;
+			case Types::u64: return ctx_.UnsignedLongLongTy;
+			case Types::f32: return ctx_.FloatTy;
+			case Types::f64: return ctx_.DoubleTy;
+			case Types::string: return ctx_.getPointerType( ctx_.CharTy );
 
-	template< class T > QualType build( T& val )
-	{
-		switch ( typeid( T ).hash_code( ) ) {
-			case typeid( bool ).hash_code( ): return QuTy_ = context_.BoolTy;
-			case typeid( int8_t ).hash_code( ): return QuTy_ = context_.CharTy;
-			case typeid( int16_t ).hash_code( ): return QuTy_ = context_.ShortTy;
-			case typeid( int32_t ).hash_code( ): return QuTy_ = context_.IntTy;
-			case typeid( int64_t ).hash_code( ): return QuTy_ = context_.LongLongTy;
-			case typeid( std::string ).hash_code( ): return QuTy_ = context_.getPointerType( context_.CharTy );
-			case typeid( uint8_t ).hash_code( ): return QuTy_ = context_.UnsignedCharTy;
-			case typeid( uint16_t ).hash_code( ): return QuTy_ = context_.UnsignedShortTy;
-			case typeid( uint32_t ).hash_code( ): return QuTy_ = context_.UnsignedIntTy;
-			case typeid( uint64_t ).hash_code( ): return QuTy_ = context_.UnsignedLongLongTy;
-			case typeid( float ).hash_code( ): return QuTy_ = context_.FloatTy;
-			case typeid( double ).hash_code( ): return QuTy_ = context_.DoubleTy;
-
+			case Types::none:
 			default: throw std::logic_error( "Unknown type" );
 		}
 	}
 
-	QualType build( const Hjson::Value& v )
+	Expr* BuildInitStatement( const Types tp, std::string_view init_state )
 	{
-		if ( v.type( ) == Hjson::Type::Map ) {
-			auto x = v[ "_type" ];
-			if ( x.type( ) == Hjson::Type::String ) return build( std::string_view( x.to_string( ) ) );
-		}
 
-		switch ( v.type( ) ) {
-			case Hjson::Type::Undefined: throw std::logic_error( "Hmmm страно что ты сюда передаешь того чего нет на самом делел :)?" );
-			case Hjson::Type::Null: throw std::logic_error( "Null type not supported" );
-			case Hjson::Type::Bool: return context_.BoolTy;
-			case Hjson::Type::Double: return context_.DoubleTy;
-			case Hjson::Type::Int64: return context_.LongLongTy;
-			case Hjson::Type::String: return context_.getPointerType( context_.CharTy );
-			case Hjson::Type::Vector: throw std::logic_error( "Vector type not supported, хуй знает что с этим делать :)" );
-			case Hjson::Type::Map: throw std::logic_error( "Map type not supported, это должно уйти в namespace :)!" );
-		}
-	}
+		switch ( tp ) { // TODO: Autocorrect Redix (use ctre)
+			case Types::boolean: {
 
-	template< class T > VarDecl* build_var( NamespaceDecl* DC, Hjson::Value& v, std::string v_name = "" )
-	{
-		QualType type;
-
-		if ( v.type( ) == Hjson::Type::Map ) {
-			{
-				const auto t = v[ "_type" ];
-				if ( t.type( ) == Hjson::Type::String ) type = build( std::string_view( t.to_string( ) ) );
+				return CXXBoolLiteralExpr::Create( ctx_,
+								   !( init_state == "false" || init_state == "0" ),
+								   GetType( "bool" ),
+								   SourceLocation( ) );
 			}
-			{
-				if ( v_name.empty( ) ) {
-					const auto n = v[ "_name" ];
-					switch ( n.type( ) ) {
-						case Hjson::Type::String: v_name = n.to_string( ); ;
-						case Hjson::Type::Undefined:
-						case Hjson::Type::Null:
-						case Hjson::Type::Bool:
-						case Hjson::Type::Double:
-						case Hjson::Type::Int64:
-						case Hjson::Type::Vector:
-						case Hjson::Type::Map:;
-					}
-				}
+			case Types::i8: {
+
+				return clang::IntegerLiteral::Create( ctx_, llvm::APInt( 8, init_state, 10 ), GetType( "i8" ), SourceLocation( ) );
 			}
-			if ( !v[ "_value" ].defined( ) ) throw std::logic_error( "Value not defined" );
+			case Types::i16: {
+				return clang::IntegerLiteral::Create( ctx_, llvm::APInt( 16, init_state, 10 ), GetType( "i16" ), SourceLocation( ) );
+			}
+			case Types::i32: {
+
+				return clang::IntegerLiteral::Create( ctx_, llvm::APInt( 32, init_state, 10 ), GetType( "i32" ), SourceLocation( ) );
+			}
+			case Types::i64: {
+				return clang::IntegerLiteral::Create( ctx_, llvm::APInt( 64, init_state, 10 ), GetType( "i64" ), SourceLocation( ) );
+			}
+			case Types::f32: {
+				float xfl;
+				std::from_chars( &( *init_state.begin( ) ), &( *init_state.end( ) ), xfl );
+				return clang::FloatingLiteral::Create( ctx_, llvm::APFloat( xfl ), false, GetType( "f32" ), SourceLocation( ) );
+			}
+			case Types::f64: {
+				double xw;
+				std::from_chars( &( *init_state.begin( ) ), &( *init_state.end( ) ), xw );
+				return clang::FloatingLiteral::Create( ctx_, llvm::APFloat( xw ), false, GetType( "f64" ), SourceLocation( ) );
+			}
+			case Types::string: {
+				return clang::StringLiteral::Create( ctx_,
+								     init_state,
+								     StringLiteral::Unevaluated,
+								     false,
+								     ctx_.getStringLiteralArrayType( ctx_.CharTy, init_state.size( ) ),
+								     SourceLocation( ) );
+			}
+			default: {
+				// Обработка случая по умолчанию, если нужно
+				return nullptr;
+			}
 		}
-
-		if ( v_name.empty( ) ) throw std::logic_error( "Name not defined" );
-
-		auto var = VarDecl::Create( context_,
-					    DC,
-					    SourceLocation( ),
-					    SourceLocation( ),
-					    &context_.Idents.get( v_name ),
-					    type,
-					    nullptr,
-					    SC_None );
-
-		var->setConstexpr( true );
-
-		Expr* vl = nullptr;
-
-		switch ( v.type( ) ) {
-			case Hjson::Type::Undefined: break; // throw
-			case Hjson::Type::Null: break;	    // throw
-			case Hjson::Type::Bool: vl = CXXBoolLiteralExpr::Create( context_, v.to_int64( ), context_.BoolTy, SourceLocation( ) ); break;
-			case Hjson::Type::Double: break;
-			case Hjson::Type::Int64: break;
-			case Hjson::Type::String: break;
-			case Hjson::Type::Vector: break;    // throw
-			case Hjson::Type::Map: break;	    // throw
-		}
-
-		DC->addDecl( var );
-
-		return var;
 	}
 };
 
@@ -231,9 +251,19 @@ namespace ConfParser
 		project.desc	    = j_project[ "desc" ].as< std::string >( );
 		project.output_name = j_project[ "output_name" ].as< std::string >( );
 		project.version	    = j_project[ "version" ].as< std::string >( );
-		project.git_hash    = j_project[ "git_hash" ].as< std::string >( );
+		project.git_hash    = getHashGitCommit( );
 
 		return project;
+	}
+
+	void appendProjectNamespace( ASTContext& ctx, const Project& p, NamespaceDecl* ns )
+	{
+		auto str_qt = TypeBuilder( ctx ).GetType( "string" );
+		createVar( ctx, ns, "name", str_qt, TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::string, p.name ) );
+		createVar( ctx, ns, "description", str_qt, TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::string, p.desc ) );
+		createVar( ctx, ns, "commit_hash", str_qt, TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::string, p.git_hash ) );
+		createVar( ctx, ns, "version", str_qt, TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::string, p.version ) );
+		//createVar( ctx, ns, "name", str_qt, TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::string, p.name ) );
 	}
 
 } // namespace ConfParser
@@ -252,20 +282,20 @@ int main( int argc, char** argv )
 	DEBUG_ASSERT( ns_global_config );
 
 	NamespaceDecl* namespaceProject = CreateNamespace( "project", context, ns_global_config );
+
+	const ConfParser::Project proj = ConfParser::parse( json::parse_file( opt( { "-f", "--file" }, "config.json" ).view( ) ) );
+
+	ConfParser::appendProjectNamespace( context, proj, namespaceProject );
+
 	ns_global_config->addDecl( namespaceProject );
-
-	// Добавление класса в пространство имен
-	createVar( context,
-		   ns_global_config,
-		   "myVar",
-		   TypeBuilder( context ).GetType( TypeBuilder::Types::string ),
-		   TypeBuilder( context ).BuildInitStatement( TypeBuilder::Types::string, "Hello World Chiki puki" ) );
-
 	global_scope->addDecl( ns_global_config );
 
 	// Вывод сгенерированного кода
 	LangOptions    langOpts;
 	PrintingPolicy policy( langOpts );
+
+	llvm::outs( ) << "#pragma once\n";
+	llvm::outs( ) << "#define _Bool bool\n\n";
 
 	global_scope->print( llvm::outs( ), policy );
 

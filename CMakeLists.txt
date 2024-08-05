@@ -53,6 +53,10 @@ add_compile_definitions(
 	_UNICODE
 	_CONSOLE
 	NOMINMAX
+	
+	LIBASSERT_USE_MAGIC_ENUM
+	LIBASSERT_USE_FMT
+	
 	)
 
 if ( CMAKE_BUILD_TYPE STREQUAL "Debug" )
@@ -63,21 +67,21 @@ endif ()
 
 add_executable( configure
                 src/main.cpp
-                include/olokreaz/FileGeneration/HeaderGenerator.hpp
-                src/FileGeneration/HeaderGeneration.cpp
                 )
 
 set_target_properties( configure PROPERTIES
                        MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL"
-                       
                        )
 
 find_package( ctre CONFIG REQUIRED )
-find_package( fmt CONFIG REQUIRED )
 find_package( argh CONFIG REQUIRED )
-find_package( hjson CONFIG REQUIRED )
 
-find_package( frozen CONFIG REQUIRED )
+
+find_package( unofficial-libgit2 CONFIG REQUIRED )
+
+find_package( libassert CONFIG REQUIRED )
+
+find_package( jsoncons CONFIG REQUIRED )
 
 find_package( LLVM CONFIG REQUIRED )
 find_package( Clang CONFIG REQUIRED )
@@ -95,15 +99,13 @@ llvm_map_components_to_libnames( llvm_libs
 
 target_link_libraries( configure PRIVATE ${llvm_libs} )
 
-
-include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/include )
+include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/src )
 
 target_link_libraries( configure PRIVATE
                        argh
                        jsoncons
                        ctre::ctre
                        fmt::fmt
-                       hjson
                        
                        #frozen::frozen frozen::frozen-headers
                        unofficial::libgit2::libgit2
@@ -128,3 +130,4 @@ target_link_libraries( configure PRIVATE
                        clangToolingSyntax
                        clangTransformer
                        )
+
