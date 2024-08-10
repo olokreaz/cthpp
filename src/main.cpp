@@ -18,32 +18,41 @@
 #include <conjure_enum.hpp>
 
 #include <algorithm>
+#include <fstream>
 #include <iostream>
 #include <variant>
 
 #include <libassert/assert.hpp>
 #include <argh.h>
 #include <git2.h>
-#include <windows.h>
+
+#include <jsoncons/json.hpp>
+#include <jsoncons_ext/jsonpath/json_query.hpp>
+#include <srilakshmikanthanp/libfiglet.hpp>
+#include <ctre.hpp>
+
+#define VERSION_PACK( MAJOR, MINOR, PATCH ) ( ( ( MAJOR ) << 16 ) | ( ( MINOR ) << 8 ) | ( PATCH ) )
+#define VERSION_MAJOR( VERSION ) ( ( ( VERSION ) >> 16 ) & 0xFF )
+#define VERSION_MINOR( VERSION ) ( ( ( VERSION ) >> 8 ) & 0xFF )
+#define VERSION_PATCH( VERSION ) ( ( VERSION ) & 0xFF )
 
 using namespace clang;
 
-std::string getHashGitCommit( )
+std::string getHashGitCommit( const llvm::StringRef path = "" )
 {
 	static std::string hash;
 	if ( !hash.empty( ) ) return hash;
-	std::string c_path;
-	c_path.resize( MAX_PATH );
-	c_path.resize( GetCurrentDirectoryA( MAX_PATH, c_path.data( ) ) );
+
+	if ( path.empty( ) ) return "";
 
 	git_libgit2_init( );
 
 	git_repository* repo = nullptr;
 
-	if ( const int er = git_repository_open( &repo, c_path.data( ) ) ) {
+	if ( const int er = git_repository_open( &repo, path.data( ) ); er ) {
 		git_libgit2_shutdown( );
 		const git_error* err = giterr_last( );
-		llvm::errs( ) << "Error: " << er << " " << ( err && err->message ? err->message : "Uknown error" ) << "\n";
+		llvm::errs( ) << "git error " << er << " " << ( err && err->message ? err->message : "Uknown error" ) << "\n";
 		return { };
 	}
 
@@ -58,8 +67,6 @@ std::string getHashGitCommit( )
 	git_commit_free( cmt );
 	git_repository_free( repo );
 	git_libgit2_shutdown( );
-
-	llvm::outs( ) << c_path << ": last git commit Hash: " << hash << "\n";
 
 	return hash;
 }
@@ -147,7 +154,7 @@ public:
 			case Types::string: return ctx_.getPointerType( ctx_.CharTy );
 
 			case Types::none:
-			default: throw std::logic_error( "Unknown type" );
+			default: throw std::logic_error( "[builder] Unknown type" );
 		}
 	}
 
@@ -159,22 +166,25 @@ public:
 
 				return CXXBoolLiteralExpr::Create( ctx_,
 								   !( init_state == "false" || init_state == "0" ),
-								   GetType( "bool" ),
+								   GetType( tp ),
 								   SourceLocation( ) );
 			}
+			case Types::u8:
 			case Types::i8: {
-
-				return clang::IntegerLiteral::Create( ctx_, llvm::APInt( 8, init_state, 10 ), GetType( "i8" ), SourceLocation( ) );
+				return clang::IntegerLiteral::Create( ctx_, llvm::APInt( 8, init_state, 10 ), GetType( tp ), SourceLocation( ) );
 			}
+			case Types::u16:
 			case Types::i16: {
-				return clang::IntegerLiteral::Create( ctx_, llvm::APInt( 16, init_state, 10 ), GetType( "i16" ), SourceLocation( ) );
+				return clang::IntegerLiteral::Create( ctx_, llvm::APInt( 16, init_state, 10 ), GetType( tp ), SourceLocation( ) );
 			}
+			case Types::u32:
 			case Types::i32: {
 
-				return clang::IntegerLiteral::Create( ctx_, llvm::APInt( 32, init_state, 10 ), GetType( "i32" ), SourceLocation( ) );
+				return clang::IntegerLiteral::Create( ctx_, llvm::APInt( 32, init_state, 10 ), GetType( tp ), SourceLocation( ) );
 			}
+			case Types::u64:
 			case Types::i64: {
-				return clang::IntegerLiteral::Create( ctx_, llvm::APInt( 64, init_state, 10 ), GetType( "i64" ), SourceLocation( ) );
+				return clang::IntegerLiteral::Create( ctx_, llvm::APInt( 64, init_state, 10 ), GetType( tp ), SourceLocation( ) );
 			}
 			case Types::f32: {
 				float xfl;
@@ -220,8 +230,6 @@ void createVar( ASTContext& ctx, NamespaceDecl* ns, const llvm::StringRef name, 
 	ns->addDecl( varDecl );
 }
 
-#include <jsoncons/json.hpp>
-
 using json = jsoncons::json;
 
 namespace ConfParser
@@ -229,18 +237,41 @@ namespace ConfParser
 	struct Project {
 		std::string name;
 		std::string desc;
-		std::string output_name;
-		std::string version;
 		std::string git_hash;
+
+		uint32_t version{ VERSION_PACK( 1, 0, 0 ) }; // MAJOR.MINOR.PATCH
+		bool	 debug{ false };		     // debug = debug | !debug = release
+		bool	 dev{ true };			     // development = development | !development = production
+
+		std::string build_type;			     // build type (debug, release)
+		std::string mode;			     // build mode (development, production)
+		std::string current_build_cmake_target;	     // current build target game-client | game-server | engine-client | engine-server
+
+		// system params
+
+		std::string output_path;
+		std::string project_dir;
 	};
 
-	/*
-	 {
-		project: {
-			..
-		},
-	 }
-	 */
+	uint32_t parse_version( const std::string_view& version_str )
+	{
+		// Регулярное выражение для парсинга строки вида "MAJOR.MINOR.PATCH"
+		constexpr auto version_pattern = ctll::fixed_string{ R"((\d+)\.(\d+)\.(\d+))" };
+
+		if ( auto match = ctre::match< version_pattern >( version_str ) ) {
+			// Извлечение значений MAJOR, MINOR и PATCH
+			int major = std::atoi( match.get< 1 >( ).to_view( ).data( ) ); // группа 1
+			int minor = std::atoi( match.get< 2 >( ).to_view( ).data( ) ); // группа 2
+			int patch = std::atoi( match.get< 3 >( ).to_view( ).data( ) );
+
+			// Упаковка в uint32_t
+			return VERSION_PACK( major, minor, patch );
+		}
+
+		// Возврат std::nullopt, если парсинг не удался
+		return VERSION_PACK( 0, 0, 0 );
+	}
+
 	Project parse( const json& j )
 	{
 		Project project;
@@ -249,9 +280,11 @@ namespace ConfParser
 
 		project.name	    = j_project[ "name" ].as< std::string >( );
 		project.desc	    = j_project[ "desc" ].as< std::string >( );
-		project.output_name = j_project[ "output_name" ].as< std::string >( );
-		project.version	    = j_project[ "version" ].as< std::string >( );
-		project.git_hash    = getHashGitCommit( );
+		project.output_path = j_project[ "output-path" ].as< std::string >( );
+		project.project_dir = j_project[ "project-dir" ].as< std::string >( );
+		project.version	    = parse_version( j_project[ "version" ].as< std::string >( ) );
+		project.debug	    = j_project[ "debug" ].as< bool >( );
+		project.dev	    = j_project[ "dev" ].as< bool >( );
 
 		return project;
 	}
@@ -261,12 +294,102 @@ namespace ConfParser
 		auto str_qt = TypeBuilder( ctx ).GetType( "string" );
 		createVar( ctx, ns, "name", str_qt, TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::string, p.name ) );
 		createVar( ctx, ns, "description", str_qt, TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::string, p.desc ) );
-		createVar( ctx, ns, "commit_hash", str_qt, TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::string, p.git_hash ) );
-		createVar( ctx, ns, "version", str_qt, TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::string, p.version ) );
-		//createVar( ctx, ns, "name", str_qt, TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::string, p.name ) );
+		createVar( ctx, ns, "git_hash", str_qt, TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::string, p.git_hash ) );
+		createVar( ctx,
+			   ns,
+			   "version",
+			   TypeBuilder( ctx ).GetType( "u32" ),
+			   TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::i32, std::to_string( p.version ) ) );
+		createVar( ctx,
+			   ns,
+			   "debug",
+			   TypeBuilder( ctx ).GetType( "boolean" ),
+			   TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::boolean, p.debug ? "true" : "false" ) );
+		createVar( ctx,
+			   ns,
+			   "release",
+			   TypeBuilder( ctx ).GetType( "boolean" ),
+			   TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::boolean, p.debug ? "false" : "true" ) );
+		createVar( ctx,
+			   ns,
+			   "development",
+			   TypeBuilder( ctx ).GetType( "boolean" ),
+			   TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::boolean, p.dev ? "true" : "false" ) );
+		createVar( ctx,
+			   ns,
+			   "production",
+			   TypeBuilder( ctx ).GetType( "boolean" ),
+			   TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::boolean, p.dev ? "false" : "true" ) );
+		createVar( ctx, ns, "mode", str_qt, TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::string, p.mode ) );
+		createVar( ctx, ns, "type", str_qt, TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::string, p.build_type ) );
+	}
+
+	void parseJsonObject(
+			const json&													    root,
+			ASTContext&													    ctx,
+			NamespaceDecl*													    ns,
+			const std::function< void( ASTContext&, NamespaceDecl*, std::string_view, std::string_view, TypeBuilder::Types ) >& func )
+	{
+		std::stack< const json* >    stack;
+		std::stack< NamespaceDecl* > stack_ns;
+
+		stack.push( &root );
+		stack_ns.push( ns );
+
+		NamespaceDecl* parrent_current_ns = nullptr;
+		NamespaceDecl* current_ns	  = nullptr;
+		while ( !stack.empty( ) ) {
+			const json* current = stack.top( );
+			parrent_current_ns  = current_ns;
+			current_ns	    = stack_ns.top( );
+			stack.pop( );
+			stack_ns.pop( );
+
+			jsoncons::pretty_print( *current ).dump( std::cout );
+
+			if ( current->is_object( ) ) {
+				for ( const auto& item : current->object_range( ) ) {
+					auto	    key = std::string_view( item.key( ) );
+					const auto& val = item.value( );
+
+					if ( val.is_object( ) || val.is_array( ) ) {
+						stack.push( &val );
+						stack_ns.push( CreateNamespace( key, ctx, current_ns ) );
+					} // Добавляем вложенный объект или массив в стек
+					else {
+						TypeBuilder::Types tp = TypeBuilder::Types::none;
+
+						switch ( val.type(  ) ) {
+							case jsoncons::json_type::bool_value: tp = TypeBuilder::Types::boolean; break;
+							case jsoncons::json_type::string_value: tp = TypeBuilder::Types::string; break;
+							case jsoncons::json_type::byte_string_value: tp = TypeBuilder::Types::string; break;
+							case jsoncons::json_type::int64_value: tp = TypeBuilder::Types::i64; break;
+							case jsoncons::json_type::uint64_value: tp = TypeBuilder::Types::u64; break;
+							case jsoncons::json_type::double_value: tp = TypeBuilder::Types::f64; break;
+							default: break;
+						}
+						llvm::outs( ) << "key: " << key << " value: " << val.to_string( )
+							      << " type: " << TypeBuilder::e_type::enum_to_string( tp )
+							      << " jtype: " << ( uint32_t )val.type( ) << "\n";
+						func( ctx, current_ns, key, val.to_string( ), tp ); // Вызов пользовательской функции
+					}
+				}
+				if ( parrent_current_ns != current_ns && ( parrent_current_ns && current_ns ) )
+					parrent_current_ns->addDecl( current_ns );
+
+			}									    /*else if ( current->is_array( ) ) {
+				for ( const auto& val : current->array_range( ) )
+					if ( val.is_object( ) || val.is_array( ) ) stack.push( &val ); // Добавляем элементы массива в стек
+			}*/
+		}
 	}
 
 } // namespace ConfParser
+
+#include <cmrc/cmrc.hpp>
+#include <filesystem>
+
+CMRC_DECLARE( fonts );
 
 int main( int argc, char** argv )
 {
@@ -283,23 +406,137 @@ int main( int argc, char** argv )
 
 	NamespaceDecl* namespaceProject = CreateNamespace( "project", context, ns_global_config );
 
-	const ConfParser::Project proj = ConfParser::parse( json::parse_file( opt( { "-f", "--file" }, "config.json" ).view( ) ) );
+	ConfParser::Project proj;
 
-	ConfParser::appendProjectNamespace( context, proj, namespaceProject );
+	try {
 
-	ns_global_config->addDecl( namespaceProject );
-	global_scope->addDecl( ns_global_config );
+		std::ifstream file( opt( { "-f", "--file" }, "config.json" ).str( ) );
+		if ( !file ) {
+			llvm::errs( ) << "Error: file not found: " << opt( { "-f", "--file" }, "config.json" ).view( ) << "\n";
+			return -1;
+		}
+		const auto json = json::parse( file );
+		proj		= ConfParser::parse( json );
 
-	// Вывод сгенерированного кода
-	LangOptions    langOpts;
-	PrintingPolicy policy( langOpts );
+		if ( proj.project_dir.empty( ) ) {
+			llvm::SmallVector< char, 256 > path_data_raw;
+			const auto		       errc = llvm::sys::fs::current_path( path_data_raw );
+			proj.project_dir		    = { path_data_raw.data( ), path_data_raw.size( ) };
+		}
 
-	llvm::outs( ) << "#pragma once\n";
-	llvm::outs( ) << "#define _Bool bool\n\n";
+		proj.project_dir = opt( { "-w", "--working" }, proj.project_dir ).str( );
+		proj.output_path = opt( { "-o", "--output" }, proj.output_path ).str( );
 
-	global_scope->print( llvm::outs( ), policy );
+		if ( opt[ { "-dbg", "--debug" } ] || opt[ { "-rel", "--release" } ] )
+			proj.debug = opt[ { "-dbg", "--debug" } ] && !opt[ { "-rel", "--release" } ];
 
-	delete ci;
+		if ( opt[ { "-dev", "--development" } ] || opt[ { "-prod", "--production" } ] )
+			proj.dev = opt[ { "-dev", "--development" } ] && !opt[ { "-prod", "--production" } ];
+
+		proj.current_build_cmake_target = opt( { "--cmake-target-current-build" }, "" ).str( );
+
+		proj.build_type = proj.debug ? "debug" : "release";
+		proj.mode	= proj.dev ? "development" : "production";
+		proj.git_hash	= getHashGitCommit( proj.project_dir );
+
+		proj.git_hash.pop_back( );
+
+		ConfParser::appendProjectNamespace( context, proj, namespaceProject );
+
+		ns_global_config->addDecl( namespaceProject );
+
+		ConfParser::parseJsonObject(
+				json[ "config" ] /*json*/,
+				context,
+				ns_global_config,
+				[ & ]( ASTContext& ctx, NamespaceDecl* ns, std::string_view key, std::string_view value, TypeBuilder::Types tp ) {
+					createVar( ctx,
+						   ns,
+						   key,
+						   TypeBuilder( ctx ).GetType( tp ),
+						   TypeBuilder( ctx ).BuildInitStatement( tp, value ) );
+				} );
+
+		global_scope->addDecl( ns_global_config );
+
+		// Вывод сгенерированного кода
+		LangOptions langOpts;
+
+		using e_lang_t = FIX8::conjure_enum< LangStandard::Kind >;
+
+		langOpts.LangStd = LangStandard::lang_cxx23;
+
+		if ( auto lang = e_lang_t::unscoped_string_to_enum( opt( { "--std" } ).str( ) ); lang ) langOpts.LangStd = *lang;
+
+		PrintingPolicy policy( langOpts );
+		policy.Bool    = 1;
+		policy.MSWChar = 1;
+
+		using namespace srilakshmikanthanp;
+
+		auto fonts_fs = cmrc::fonts::get_filesystem( );
+
+		auto flf_file_Ivrit = fonts_fs.open( "fonts/Ivrit.flf" );
+
+		auto flf_file_std = fonts_fs.open( "fonts/Standard.flf" );
+
+		auto x = llvm::sys::fs::getMainExecutable( *argv, &main );
+
+		const auto execdir = std::filesystem::path( x ).parent_path( );
+
+		if ( !llvm::sys::fs::exists( ( execdir / "Ivrit.flf" ).string( ) ) )
+			std::ofstream( execdir / "Ivrit.flf", std::ios::trunc | std::ios::binary | std::ios::out )
+					.write( flf_file_Ivrit.begin( ), flf_file_Ivrit.size( ) )
+					.flush( );
+		if ( !llvm::sys::fs::exists( ( execdir / "Standard.flf" ).string( ) ) )
+			std::ofstream( execdir / "Standard.flf", std::ios::trunc | std::ios::binary | std::ios::out )
+					.write( flf_file_std.begin( ), flf_file_std.size( ) )
+					.flush( );
+
+		libfiglet::figlet figlet_copyright( libfiglet::flf_font::make_shared( ( execdir / "Ivrit.flf" ).string( ) ),
+						    libfiglet::full_width::make_shared( ) );
+
+		libfiglet::figlet figlet_ProjectLogo( libfiglet::flf_font::make_shared( ( execdir / "Standard.flf" ).string( ) ),
+						      libfiglet::full_width::make_shared( ) );
+
+		std::string		 config_impl;
+		llvm::raw_string_ostream os( config_impl );
+
+		llvm::outs( ) << figlet_ProjectLogo( "cth++" ) << "\n";
+
+		os << "/*\n";
+		os << figlet_ProjectLogo( proj.name ) << "\n";
+		os << "*/\n\n";
+
+		os << "#pragma once\n\n";
+
+		os << R"(#define VERSION_PACK(MAJOR, MINOR, PATCH) \
+    ( ( ( MAJOR ) << 16 ) | ( ( MINOR ) << 8 ) | ( PATCH ) ))"
+		   << "\n\n"
+		   << "\n";
+
+		global_scope->print( os, policy );
+
+		os << "\n\n\n";
+		os << "/*"
+		   << "\n";
+		os << figlet_copyright( "Create by: @olokreaz" ) << "\n";
+		os << figlet_copyright( "repo: olokreaz/cth++" ) << "\n";
+		os << "*/"
+		   << "\n";
+
+		llvm::sys::fs::create_directories( std::filesystem::path( proj.output_path ).parent_path( ).string( ) );
+
+		std::ofstream( proj.output_path, std::ios::out | std::ios::binary | std::ios::trunc )
+				.write( config_impl.data( ), config_impl.size( ) )
+				.flush( );
+
+		delete ci;
+
+	} catch ( const std::exception& e ) {
+		llvm::errs( ) << "Error: " << e.what( ) << "\n";
+		return -1;
+	}
 
 	return 0;
-} // namespace ConfHJsonint main(intargc,char**argv)
+} // namesp

@@ -1,0 +1,3 @@
+[submodule "third-party/libfiglet"]
+	path = third-party/libfiglet
+	url = git@github.com:srilakshmikanthanp/libfiglet.git
