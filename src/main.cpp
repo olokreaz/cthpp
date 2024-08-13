@@ -332,8 +332,8 @@ namespace ConfParser
 	{
 		if ( root.is_object( ) ) {
 			for ( const auto& item : root.object_range( ) ) {
-				auto	    key = std::string_view( item.key( ) );
-				const auto& val = item.value( );
+				auto	    key = std::string_view(   item.key( ) );
+				const auto& val= item.value( );
 
 				if ( val.is_object( ) || val.is_array( ) ) {
 					NamespaceDecl* child_ns = CreateNamespace( key, ctx, ns );

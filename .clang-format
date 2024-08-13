@@ -53,7 +53,7 @@ AlignAfterOpenBracket: Align
 AlignArrayOfStructures: Left
 AlignConsecutiveBitFields: true
 AlignConsecutiveMacros: true
-AlignConsecutiveTableGenBreakingDAGArgColons: true
+#AlignConsecutiveTableGenBreakingDAGArgColons: true
 AlignConsecutiveTableGenCondOperatorColons: true
 AlignConsecutiveTableGenDefinitionColons: true
 AlignEscapedNewlines: Right
@@ -65,7 +65,7 @@ AllowShortLambdasOnASingleLine: All
 AlwaysBreakBeforeMultilineStrings: false
 BitFieldColonSpacing: Both
 BracedInitializerIndentWidth: 8
-BreakAdjacentStringLiterals: true
+#BreakAdjacentStringLiterals: true
 BreakAfterAttributes: Never
 BreakAfterJavaFieldAnnotations: true
 BreakAfterReturnType: Automatic
