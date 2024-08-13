@@ -330,57 +330,31 @@ namespace ConfParser
 			NamespaceDecl*													    ns,
 			const std::function< void( ASTContext&, NamespaceDecl*, std::string_view, std::string_view, TypeBuilder::Types ) >& func )
 	{
-		std::stack< const json* >    stack;
-		std::stack< NamespaceDecl* > stack_ns;
+		if ( root.is_object( ) ) {
+			for ( const auto& item : root.object_range( ) ) {
+				auto	    key = std::string_view( item.key( ) );
+				const auto& val = item.value( );
 
-		stack.push( &root );
-		stack_ns.push( ns );
+				if ( val.is_object( ) || val.is_array( ) ) {
+					NamespaceDecl* child_ns = CreateNamespace( key, ctx, ns );
+					parseJsonObject( val, ctx, child_ns, func );
+					ns->addDecl( child_ns ); // Добавляем декларант в родительский namespace
+				} else {
+					TypeBuilder::Types tp = TypeBuilder::Types::none;
 
-		NamespaceDecl* parrent_current_ns = nullptr;
-		NamespaceDecl* current_ns	  = nullptr;
-		while ( !stack.empty( ) ) {
-			const json* current = stack.top( );
-			parrent_current_ns  = current_ns;
-			current_ns	    = stack_ns.top( );
-			stack.pop( );
-			stack_ns.pop( );
-
-			jsoncons::pretty_print( *current ).dump( std::cout );
-
-			if ( current->is_object( ) ) {
-				for ( const auto& item : current->object_range( ) ) {
-					auto	    key = std::string_view( item.key( ) );
-					const auto& val = item.value( );
-
-					if ( val.is_object( ) || val.is_array( ) ) {
-						stack.push( &val );
-						stack_ns.push( CreateNamespace( key, ctx, current_ns ) );
-					} // Добавляем вложенный объект или массив в стек
-					else {
-						TypeBuilder::Types tp = TypeBuilder::Types::none;
-
-						switch ( val.type(  ) ) {
-							case jsoncons::json_type::bool_value: tp = TypeBuilder::Types::boolean; break;
-							case jsoncons::json_type::string_value: tp = TypeBuilder::Types::string; break;
-							case jsoncons::json_type::byte_string_value: tp = TypeBuilder::Types::string; break;
-							case jsoncons::json_type::int64_value: tp = TypeBuilder::Types::i64; break;
-							case jsoncons::json_type::uint64_value: tp = TypeBuilder::Types::u64; break;
-							case jsoncons::json_type::double_value: tp = TypeBuilder::Types::f64; break;
-							default: break;
-						}
-						llvm::outs( ) << "key: " << key << " value: " << val.to_string( )
-							      << " type: " << TypeBuilder::e_type::enum_to_string( tp )
-							      << " jtype: " << ( uint32_t )val.type( ) << "\n";
-						func( ctx, current_ns, key, val.to_string( ), tp ); // Вызов пользовательской функции
+					switch ( val.type( ) ) {
+						case jsoncons::json_type::bool_value: tp = TypeBuilder::Types::boolean; break;
+						case jsoncons::json_type::string_value: tp = TypeBuilder::Types::string; break;
+						case jsoncons::json_type::byte_string_value: tp = TypeBuilder::Types::string; break;
+						case jsoncons::json_type::int64_value: tp = TypeBuilder::Types::i64; break;
+						case jsoncons::json_type::uint64_value: tp = TypeBuilder::Types::u64; break;
+						case jsoncons::json_type::double_value: tp = TypeBuilder::Types::f64; break;
+						default: break;
 					}
-				}
-				if ( parrent_current_ns != current_ns && ( parrent_current_ns && current_ns ) )
-					parrent_current_ns->addDecl( current_ns );
 
-			}									    /*else if ( current->is_array( ) ) {
-				for ( const auto& val : current->array_range( ) )
-					if ( val.is_object( ) || val.is_array( ) ) stack.push( &val ); // Добавляем элементы массива в стек
-			}*/
+					func( ctx, ns, key, val.to_string( ), tp ); // Вызов пользовательской функции
+				}
+			}
 		}
 	}
 
@@ -444,6 +418,8 @@ int main( int argc, char** argv )
 		ConfParser::appendProjectNamespace( context, proj, namespaceProject );
 
 		ns_global_config->addDecl( namespaceProject );
+
+		global_scope->dump( );
 
 		ConfParser::parseJsonObject(
 				json[ "config" ] /*json*/,
