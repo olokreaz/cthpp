@@ -53,6 +53,10 @@ add_compile_definitions(
 	_UNICODE
 	_CONSOLE
 	NOMINMAX
+	
+	LIBASSERT_USE_MAGIC_ENUM
+	LIBASSERT_USE_FMT
+	
 	)
 
 if ( CMAKE_BUILD_TYPE STREQUAL "Debug" )
@@ -63,21 +67,22 @@ endif ()
 
 add_executable( configure
                 src/main.cpp
-                include/olokreaz/FileGeneration/HeaderGenerator.hpp
-                src/FileGeneration/HeaderGeneration.cpp
                 )
 
 set_target_properties( configure PROPERTIES
                        MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL"
-                       
                        )
 
 find_package( ctre CONFIG REQUIRED )
-find_package( fmt CONFIG REQUIRED )
 find_package( argh CONFIG REQUIRED )
-find_package( hjson CONFIG REQUIRED )
 
-find_package( frozen CONFIG REQUIRED )
+
+find_package( unofficial-libgit2 CONFIG REQUIRED )
+
+find_package( libassert CONFIG REQUIRED )
+
+find_package( jsoncons CONFIG REQUIRED )
+find_package( CmakeRC CONFIG REQUIRED )
 
 find_package( LLVM CONFIG REQUIRED )
 find_package( Clang CONFIG REQUIRED )
@@ -93,18 +98,28 @@ llvm_map_components_to_libnames( llvm_libs
                                  support core irreader analysis
                                  )
 
+
 target_link_libraries( configure PRIVATE ${llvm_libs} )
 
+include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/src )
 
-include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/include )
+include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/third-party/libfiglet/src )
+
+set( CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL" )
+
+set( CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /Od" )
+set( CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O3" )
+
 
 target_link_libraries( configure PRIVATE
                        argh
+                       jsoncons
                        ctre::ctre
                        fmt::fmt
-                       hjson
                        
                        #frozen::frozen frozen::frozen-headers
+                       unofficial::libgit2::libgit2
+                       libassert::assert
                        
                        clangTooling
                        clangBasic
@@ -125,3 +140,13 @@ target_link_libraries( configure PRIVATE
                        clangToolingSyntax
                        clangTransformer
                        )
+
+cmrc_add_resource_library( internal_ascii_fonts
+                           NAMESPACE fonts
+                           WHENCE ${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts
+                           PREFIX fonts
+                           ${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/Standard.flf
+                           ${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/Ivrit.flf
+                           )
+
+target_link_libraries( configure PRIVATE internal_ascii_fonts )

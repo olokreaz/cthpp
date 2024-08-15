@@ -41,22 +41,74 @@ BraceWrapping:
         IndentBraces: false
         SplitEmptyRecord: false
         SplitEmptyNamespace: false
-BreakBeforeBraces: Linux
+BreakBeforeBraces: Mozilla
 BreakConstructorInitializersBeforeComma: false
 BreakInheritanceList: AfterColon
+AlignConsecutiveShortCaseStatements:
+        Enabled: true
+        AcrossComments: true
+        AcrossEmptyLines: true
+        AlignCaseColons: true
+AlignAfterOpenBracket: Align
+AlignArrayOfStructures: Left
+AlignConsecutiveBitFields: true
+AlignConsecutiveMacros: true
+#AlignConsecutiveTableGenBreakingDAGArgColons: true
+#AlignConsecutiveTableGenCondOperatorColons: true
+#AlignConsecutiveTableGenDefinitionColons: true
+AlignEscapedNewlines: Right
+AllowBreakBeforeNoexceptSpecifier: Always
+#AllowShortCaseExpressionOnASingleLine: true
+#AllowShortCompoundRequirementOnASingleLine: true
+AllowShortEnumsOnASingleLine: true
+AllowShortLambdasOnASingleLine: All
+AlwaysBreakBeforeMultilineStrings: false
+BitFieldColonSpacing: Both
+BracedInitializerIndentWidth: 8
+#BreakAdjacentStringLiterals: true
+BreakAfterAttributes: Never
+BreakAfterJavaFieldAnnotations: true
+#BreakAfterReturnType: Automatic
+BreakArrays: false
+BreakBeforeBinaryOperators: All
+BreakBeforeConceptDeclarations: Never
+BreakBeforeInlineASMColon: OnlyMultiline
+BreakBeforeTernaryOperators: true
+BreakConstructorInitializers: AfterColon
+#BreakFunctionDefinitionParameters: false
+BreakStringLiterals: true
+#BreakTemplateDeclarations: No
+ConstructorInitializerIndentWidth: 8
+Cpp11BracedListStyle: true
+DerivePointerAlignment: true
+ExperimentalAutoDetectBinPacking: true
+FixNamespaceComments: true
+Standard: Latest
+TabWidth: 8
+SpacesBeforeTrailingComments: 4
+InsertBraces: false
+
 ColumnLimit: 150
 CompactNamespaces: true
 ConstructorInitializerAllOnOneLineOrOnePerLine: true
 ContinuationIndentWidth: 16
 IncludeCategories:
+        -       Regex: '^<engine/(client|server)/.*'
+                Priority: 1
+        -       Regex: '^<engine/.*'
+                Priority: 2
+        -       Regex: '^<game/(client|server)/.*'
+                Priority: 3
+        -       Regex: '^<game/.*'
+                Priority: 4
         -       Regex: '^<.*/.*'
                 Priority: 5
         -       Regex: '^<.*'
                 Priority: 6
         -       Regex: '^".*'
-                Priority: 1
+                Priority: 7
         -       Regex: '.*'
-                Priority: 1
+                Priority: 8
 IncludeIsMainRegex: '([-_](test|unittest))?$'
 IndentCaseLabels: true
 IndentPPDirectives: AfterHash
