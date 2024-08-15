@@ -13,7 +13,9 @@
 #include <clang/Frontend/FrontendActions.h>
 #include <clang/Frontend/Utils.h>
 #include <clang/Tooling/Tooling.h>
+
 #include <llvm/ADT/APFixedPoint.h>
+#include <llvm/Support/Host.h>
 
 #include <conjure_enum.hpp>
 
@@ -24,12 +26,13 @@
 
 #include <libassert/assert.hpp>
 #include <argh.h>
+#include <ctre.hpp>
 #include <git2.h>
 
 #include <jsoncons/json.hpp>
 #include <jsoncons_ext/jsonpath/json_query.hpp>
+
 #include <srilakshmikanthanp/libfiglet.hpp>
-#include <ctre.hpp>
 
 #define VERSION_PACK( MAJOR, MINOR, PATCH ) ( ( ( MAJOR ) << 16 ) | ( ( MINOR ) << 8 ) | ( PATCH ) )
 #define VERSION_MAJOR( VERSION )	    ( ( ( VERSION ) >> 16 ) & 0xFF )
@@ -77,8 +80,11 @@ CompilerInstance* createCompilerInstance( )
 	auto* ci = new CompilerInstance( );
 	ci->createDiagnostics( );
 
-	auto targetOptions    = std::make_shared< TargetOptions >( );
-	targetOptions->Triple = "x86_64-pc-windows-msvc";
+	auto targetOptions = std::make_shared< TargetOptions >( );
+
+	targetOptions->Triple = llvm::sys::getDefaultTargetTriple( );
+	targetOptions->CPU    = llvm::sys::getHostCPUName( ).str( );
+
 	ci->setTarget( TargetInfo::CreateTargetInfo( ci->getDiagnostics( ), targetOptions ) );
 
 	ci->createFileManager( );
