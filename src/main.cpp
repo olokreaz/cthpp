@@ -32,9 +32,9 @@
 #include <ctre.hpp>
 
 #define VERSION_PACK( MAJOR, MINOR, PATCH ) ( ( ( MAJOR ) << 16 ) | ( ( MINOR ) << 8 ) | ( PATCH ) )
-#define VERSION_MAJOR( VERSION ) ( ( ( VERSION ) >> 16 ) & 0xFF )
-#define VERSION_MINOR( VERSION ) ( ( ( VERSION ) >> 8 ) & 0xFF )
-#define VERSION_PATCH( VERSION ) ( ( VERSION ) & 0xFF )
+#define VERSION_MAJOR( VERSION )	    ( ( ( VERSION ) >> 16 ) & 0xFF )
+#define VERSION_MINOR( VERSION )	    ( ( ( VERSION ) >> 8 ) & 0xFF )
+#define VERSION_PATCH( VERSION )	    ( ( VERSION ) & 0xFF )
 
 using namespace clang;
 
@@ -89,18 +89,18 @@ CompilerInstance* createCompilerInstance( )
 	return ci;
 }
 
-namespace common
-{
+namespace common {
 	constexpr size_t const_hash( const std::string_view input )
 	{
 		return input.empty( ) ? 0 : input[ 0 ] + 33 * const_hash( input.substr( 1 ) );
 	}
-} // namespace common
+}    // namespace common
 
 class TypeBuilder
 {
 public:
-	enum class Types : uint8_t {
+	enum class Types : uint8_t
+	{
 		none = 0,
 
 		boolean = 1,
@@ -141,27 +141,27 @@ public:
 	{
 		switch ( tp ) {
 			case Types::boolean: return ctx_.BoolTy;
-			case Types::i8: return ctx_.CharTy;
-			case Types::u8: return ctx_.UnsignedCharTy;
-			case Types::i16: return ctx_.ShortTy;
-			case Types::u16: return ctx_.UnsignedShortTy;
-			case Types::i32: return ctx_.IntTy;
-			case Types::u32: return ctx_.UnsignedIntTy;
-			case Types::i64: return ctx_.LongLongTy;
-			case Types::u64: return ctx_.UnsignedLongLongTy;
-			case Types::f32: return ctx_.FloatTy;
-			case Types::f64: return ctx_.DoubleTy;
-			case Types::string: return ctx_.getPointerType( ctx_.CharTy );
+			case Types::i8	   : return ctx_.CharTy;
+			case Types::u8	   : return ctx_.UnsignedCharTy;
+			case Types::i16	   : return ctx_.ShortTy;
+			case Types::u16	   : return ctx_.UnsignedShortTy;
+			case Types::i32	   : return ctx_.IntTy;
+			case Types::u32	   : return ctx_.UnsignedIntTy;
+			case Types::i64	   : return ctx_.LongLongTy;
+			case Types::u64	   : return ctx_.UnsignedLongLongTy;
+			case Types::f32	   : return ctx_.FloatTy;
+			case Types::f64	   : return ctx_.DoubleTy;
+			case Types::string : return ctx_.getPointerType( ctx_.CharTy );
 
-			case Types::none:
-			default: throw std::logic_error( "[builder] Unknown type" );
+			case Types::none   :
+			default		   : throw std::logic_error( "[builder] Unknown type" );
 		}
 	}
 
 	Expr* BuildInitStatement( const Types tp, std::string_view init_state )
 	{
 
-		switch ( tp ) { // TODO: Autocorrect Redix (use ctre)
+		switch ( tp ) {	   // TODO: Autocorrect Redix (use ctre)
 			case Types::boolean: {
 
 				return CXXBoolLiteralExpr::Create( ctx_,
@@ -214,8 +214,8 @@ public:
 
 NamespaceDecl* CreateNamespace( llvm::StringRef name, ASTContext& ctx, DeclContext* dcctx )
 {
-	NamespaceDecl* ns_global =
-			NamespaceDecl::Create( ctx, dcctx, false, SourceLocation( ), SourceLocation( ), &ctx.Idents.get( name ), nullptr, true );
+	NamespaceDecl* ns_global
+			= NamespaceDecl::Create( ctx, dcctx, false, SourceLocation( ), SourceLocation( ), &ctx.Idents.get( name ), nullptr, true );
 
 	return ns_global;
 }
@@ -232,20 +232,20 @@ void createVar( ASTContext& ctx, NamespaceDecl* ns, const llvm::StringRef name, 
 
 using json = jsoncons::json;
 
-namespace ConfParser
-{
-	struct Project {
+namespace ConfParser {
+	struct Project
+	{
 		std::string name;
 		std::string desc;
 		std::string git_hash;
 
-		uint32_t version{ VERSION_PACK( 1, 0, 0 ) }; // MAJOR.MINOR.PATCH
-		bool	 debug{ false };		     // debug = debug | !debug = release
-		bool	 dev{ true };			     // development = development | !development = production
+		uint32_t version{ VERSION_PACK( 1, 0, 0 ) };	// MAJOR.MINOR.PATCH
+		bool	 debug{ false };			// debug = debug | !debug = release
+		bool	 dev{ true };				// development = development | !development = production
 
-		std::string build_type;			     // build type (debug, release)
-		std::string mode;			     // build mode (development, production)
-		std::string current_build_cmake_target;	     // current build target game-client | game-server | engine-client | engine-server
+		std::string build_type;				// build type (debug, release)
+		std::string mode;				// build mode (development, production)
+		std::string current_build_cmake_target;		// current build target game-client | game-server | engine-client | engine-server
 
 		// system params
 
@@ -260,8 +260,8 @@ namespace ConfParser
 
 		if ( auto match = ctre::match< version_pattern >( version_str ) ) {
 			// Извлечение значений MAJOR, MINOR и PATCH
-			int major = std::atoi( match.get< 1 >( ).to_view( ).data( ) ); // группа 1
-			int minor = std::atoi( match.get< 2 >( ).to_view( ).data( ) ); // группа 2
+			int major = std::atoi( match.get< 1 >( ).to_view( ).data( ) );	  // группа 1
+			int minor = std::atoi( match.get< 2 >( ).to_view( ).data( ) );	  // группа 2
 			int patch = std::atoi( match.get< 3 >( ).to_view( ).data( ) );
 
 			// Упаковка в uint32_t
@@ -320,45 +320,53 @@ namespace ConfParser
 			   "production",
 			   TypeBuilder( ctx ).GetType( "boolean" ),
 			   TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::boolean, p.dev ? "false" : "true" ) );
+		createVar( ctx,
+			   ns,
+			   "target",
+			   str_qt,
+			   TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::string, p.current_build_cmake_target ) );
 		createVar( ctx, ns, "mode", str_qt, TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::string, p.mode ) );
 		createVar( ctx, ns, "type", str_qt, TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::string, p.build_type ) );
 	}
 
-	void parseJsonObject(
-			const json&													    root,
-			ASTContext&													    ctx,
-			NamespaceDecl*													    ns,
-			const std::function< void( ASTContext&, NamespaceDecl*, std::string_view, std::string_view, TypeBuilder::Types ) >& func )
+	void parseJsonObject( const json& root, ASTContext& ctx, NamespaceDecl* ns )
 	{
+
 		if ( root.is_object( ) ) {
 			for ( const auto& item : root.object_range( ) ) {
-				auto	    key = std::string_view(   item.key( ) );
-				const auto& val= item.value( );
-
+				auto	    key = std::string( item.key( ) );
+				const auto& val = item.value( );
 				if ( val.is_object( ) || val.is_array( ) ) {
 					NamespaceDecl* child_ns = CreateNamespace( key, ctx, ns );
-					parseJsonObject( val, ctx, child_ns, func );
-					ns->addDecl( child_ns ); // Добавляем декларант в родительский namespace
+					parseJsonObject( val, ctx, child_ns );
+					ns->addDecl( child_ns );    // Добавляем декларант в родительский namespace
 				} else {
 					TypeBuilder::Types tp = TypeBuilder::Types::none;
 
 					switch ( val.type( ) ) {
-						case jsoncons::json_type::bool_value: tp = TypeBuilder::Types::boolean; break;
-						case jsoncons::json_type::string_value: tp = TypeBuilder::Types::string; break;
+						case jsoncons::json_type::bool_value	   : tp = TypeBuilder::Types::boolean; break;
+						case jsoncons::json_type::string_value	   : tp = TypeBuilder::Types::string; break;
 						case jsoncons::json_type::byte_string_value: tp = TypeBuilder::Types::string; break;
-						case jsoncons::json_type::int64_value: tp = TypeBuilder::Types::i64; break;
-						case jsoncons::json_type::uint64_value: tp = TypeBuilder::Types::u64; break;
-						case jsoncons::json_type::double_value: tp = TypeBuilder::Types::f64; break;
-						default: break;
+						case jsoncons::json_type::int64_value	   : tp = TypeBuilder::Types::i64; break;
+						case jsoncons::json_type::uint64_value	   : tp = TypeBuilder::Types::u64; break;
+						case jsoncons::json_type::double_value	   : tp = TypeBuilder::Types::f64; break;
+						default					   : break;
 					}
 
-					func( ctx, ns, key, val.to_string( ), tp ); // Вызов пользовательской функции
+					for ( auto pos = key.find( '-' ); pos != std::string::npos; pos = key.find( '-' ) ) key[ pos ] = '_';
+
+					createVar( ctx,
+						   ns,
+						   key,
+						   TypeBuilder( ctx ).GetType( tp ),
+						   TypeBuilder( ctx ).BuildInitStatement( tp,
+											  val.as_string( ) ) );	   // Вызов пользовательской функции
 				}
 			}
 		}
 	}
 
-} // namespace ConfParser
+}    // namespace ConfParser
 
 #include <cmrc/cmrc.hpp>
 #include <filesystem>
@@ -419,19 +427,9 @@ int main( int argc, char** argv )
 
 		ns_global_config->addDecl( namespaceProject );
 
-		global_scope->dump( );
+		//global_scope->dump( );
 
-		ConfParser::parseJsonObject(
-				json[ "config" ] /*json*/,
-				context,
-				ns_global_config,
-				[ & ]( ASTContext& ctx, NamespaceDecl* ns, std::string_view key, std::string_view value, TypeBuilder::Types tp ) {
-					createVar( ctx,
-						   ns,
-						   key,
-						   TypeBuilder( ctx ).GetType( tp ),
-						   TypeBuilder( ctx ).BuildInitStatement( tp, value ) );
-				} );
+		ConfParser::parseJsonObject( json[ "config" ] /*json*/, context, ns_global_config );
 
 		global_scope->addDecl( ns_global_config );
 
@@ -515,4 +513,4 @@ int main( int argc, char** argv )
 	}
 
 	return 0;
-} // namesp
+}    // namesp
