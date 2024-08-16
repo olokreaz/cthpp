@@ -381,11 +381,34 @@ CMRC_DECLARE( fonts );
 
 int main( int argc, char** argv )
 {
+	const argh::parser opt( argc, argv );
+
+	if ( opt[ { "--help", "-h" } ] ) {
+		llvm::outs( ) << "Usage: your_program [OPTIONS]\n"
+			      << "Options:\n"
+			      << "\t-h, --help                     Show this help message and exit.\n"
+			      << "\t-f, --file <path>              Path to the JSON configuration file (default: config.json).\n"
+			      << "\t-w, --working <path>           Set the working directory (default: current directory).\n"
+			      << "\t-o, --output <path>            Set the output path (default: value from JSON config).\n"
+			      << "\t-dbg, --debug                  Set build mode to debug (default: based on JSON config).\n"
+			      << "\t-rel, --release                Set build mode to release.\n"
+			      << "\t-dev, --development            Set build mode to development (default: based on JSON config).\n"
+			      << "\t-prod, --production            Set build mode to production.\n"
+			      << "\t-ns, --global-namespace <name> Set the global namespace name (default: \"config\").\n"
+			      << "\t--cmake-target-current-build   Specify the current build target (e.g., game-client, engine-server).\n"
+			      << "\t--std <cxx_standard>           Specify the C++ standard (default: cxx23).\n"
+			      << "Description:\n"
+			      << "This program parses a JSON configuration file, extracts project settings, and generates C++ code with the "
+				 "specified configurations.\n"
+			      << "Example:\n"
+			      << "\tyour_program --file my_config.json --debug --global-namespace my_namespace)\n";
+
+		return 0;
+	}
+
 	CompilerInstance*    ci		  = createCompilerInstance( );
 	ASTContext&	     context	  = ci->getASTContext( );
 	TranslationUnitDecl* global_scope = context.getTranslationUnitDecl( );
-
-	const argh::parser opt( argc, argv );
 
 	// Создание пространства имен
 	NamespaceDecl* ns_global_config = CreateNamespace( opt( { "-ns", "--global-namespace" }, "config" ).view( ), context, global_scope );
@@ -519,4 +542,4 @@ int main( int argc, char** argv )
 	}
 
 	return 0;
-}    // namesp
+}
