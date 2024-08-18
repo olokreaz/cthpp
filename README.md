@@ -1,8 +1,7 @@
 # CTH++
 
 ## Introduction
-
-### What is CTH++
+Config Compile-Time Header++ (CTH++) is a tool for automatically generating C++ configuration headers at compile-time using JSON data and constexpr. It supports various build modes and offers flexible project configuration.
 
 ## Usage
 
