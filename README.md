@@ -7,25 +7,29 @@
 ## Usage
 
 ```text
-Usage: cth++ [options]
-Options:
-	-h, --help - show this message
-	-f, --file=<file> - input json file
-	-o, --output=<file> - output file
-	-w, --working=<dir> - working directory
-	--std <std> - c++ standard
-	--cmake-target-current-build <target> - current build target
-	--global-namespace <name> - global namespace
-	--debug - debug mode
-	--release - release mode
-	--development - development mode
-	--production - production mode
+USAGE: cth++ [options]
+OPTIONS:
+Generic Options:
+  --help                                - Display available options (--help-hidden for more)
+  --help-list                           - Display list of available options (--help-list-hidden for more)
+  --version                             - Display the version of this program
+cth++ options:
+  --cmake-target-current-build=<target> - Specify the current build target
+  --config=<path>                       - Path to the JSON configuration file
+  --dbg                                 - Set build mode to debug
+  --development                         - Set build mode to development
+  --namespace=<name>                    - Set the global namespace name
+  --output=<path>                       - Output path
+  --prodaction                          - Set build mode to production
+  --rel                                 - Set build mode to release
+  --std=<cxx standard>                  - Specify the C++ standard
+  --working=<path>                      - Set the project directory
 ```
 
 # Example
 
 ```shell
-$ cth++ -f=config.json -o=config.h
+$ cth++ --output=path/to/output --config=path/to/config.json
 ```
 
 - config.json
@@ -35,12 +39,16 @@ $ cth++ -f=config.json -o=config.h
 {
 	"project": {
 		"name": "Example",
-		"desc": "Example Example Example ",
+		"desc": "Example Example Example",
 		"version": "1.1.1",
 		"debug": true,
+		// --dbg true / --rel false
 		"dev": true,
+		// --development / --prodaction
 		"output-path": "path/to/output",
+		// ignored use override argumend --output
 		"project-dir": "path/to/project/dir"
+		// argument --working
 	},
 	"config": {
 		"client": {

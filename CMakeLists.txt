@@ -1,5 +1,5 @@
 cmake_minimum_required( VERSION 3.22 )
-project( GenerationCompileTimeConfig )
+project( cth++ C CXX )
 
 set( CMAKE_CXX_STANDARD 23 )
 set( CMAKE_EXPORT_COMPILE_COMMANDS ON )
@@ -36,8 +36,10 @@ if ( ${WIN32} )
 		/wd4996
 		/openmp
 		/FS
+		/VERBOSE
 		)
-	#	add_link_options( /FORCE:UNRESOLVED )
+	
+	add_link_options( /VERBOSE )
 elseif ( ${LINUX} )
 	add_compile_options( -finput-charset=UTF-8
 	                     -fexceptions
@@ -54,9 +56,6 @@ add_compile_definitions(
 	_CONSOLE
 	NOMINMAX
 	
-	LIBASSERT_USE_MAGIC_ENUM
-	LIBASSERT_USE_FMT
-	
 	)
 
 if ( CMAKE_BUILD_TYPE STREQUAL "Debug" )
@@ -65,16 +64,15 @@ else ()
 	add_compile_definitions( NDEBUG )
 endif ()
 
-add_executable( configure
+add_executable( ${PROJECT_NAME}
                 src/main.cpp
                 )
 
-set_target_properties( configure PROPERTIES
+set_target_properties( ${PROJECT_NAME} PROPERTIES
                        MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL"
                        )
 
 find_package( ctre CONFIG REQUIRED )
-find_package( argh CONFIG REQUIRED )
 
 
 find_package( unofficial-libgit2 CONFIG REQUIRED )
@@ -92,14 +90,14 @@ message( STATUS "LLVM_CMAKE_DIR: ${LLVM_CMAKE_DIR}" )
 
 include( HandleLLVMOptions )
 add_definitions( ${LLVM_DEFINITIONS} )
-target_include_directories( configure PRIVATE ${LLVM_INCLUDE_DIRS} )
+target_include_directories( ${PROJECT_NAME} PRIVATE ${LLVM_INCLUDE_DIRS} )
 
 llvm_map_components_to_libnames( llvm_libs
                                  support core irreader analysis
                                  )
 
 
-target_link_libraries( configure PRIVATE ${llvm_libs} )
+target_link_libraries( ${PROJECT_NAME} PRIVATE ${llvm_libs} )
 
 include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/src )
 
@@ -111,15 +109,13 @@ set( CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /Od" )
 set( CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O3" )
 
 
-target_link_libraries( configure PRIVATE
-                       argh
+target_link_libraries( ${PROJECT_NAME} PRIVATE
                        jsoncons
                        ctre::ctre
-                       fmt::fmt
+                       
                        
                        #frozen::frozen frozen::frozen-headers
                        unofficial::libgit2::libgit2
-                       libassert::assert
                        
                        clangTooling
                        clangBasic
@@ -141,12 +137,12 @@ target_link_libraries( configure PRIVATE
                        clangTransformer
                        )
 
-cmrc_add_resource_library( internal_ascii_fonts
+cmrc_add_resource_library( internal_ascii_fonts_rc
                            NAMESPACE fonts
-                           WHENCE ${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts
+                           WHENCE ${CMAKE_CURRENT_SOURCE_DIR}/third-party/libfiglet/assets/fonts
                            PREFIX fonts
-                           ${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/Standard.flf
-                           ${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/Ivrit.flf
+                           ${CMAKE_CURRENT_SOURCE_DIR}/third-party/libfiglet/assets/fonts/Standard.flf
+                           ${CMAKE_CURRENT_SOURCE_DIR}/third-party/libfiglet/assets/fonts/Ivrit.flf
                            )
 
-target_link_libraries( configure PRIVATE internal_ascii_fonts )
+target_link_libraries( ${PROJECT_NAME} PRIVATE internal_ascii_fonts_rc )
