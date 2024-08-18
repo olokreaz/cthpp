@@ -41,14 +41,10 @@ $ cth++ --output=path/to/output --config=path/to/config.json
 		"name": "Example",
 		"desc": "Example Example Example",
 		"version": "1.1.1",
-		"debug": true,
-		// --dbg true / --rel false
-		"dev": true,
-		// --development / --prodaction
-		"output-path": "path/to/output",
-		// ignored use override argumend --output
-		"project-dir": "path/to/project/dir"
-		// argument --working
+		"debug": true, // --dbg true / --rel false
+		"dev": true, // --development / --prodaction
+		"output-path": "path/to/output", // ignored use override argumend --output
+		"project-dir": "path/to/project/dir" // argument --working
 	},
 	"config": {
 		"client": {
