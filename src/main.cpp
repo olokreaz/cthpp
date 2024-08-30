@@ -34,11 +34,11 @@
 #include <conjure_enum.hpp>
 
 #include <algorithm>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <variant>
 
-// #include <ctre.hpp>
 #include <git2.h>
 
 #include <jsoncons/json.hpp>
@@ -59,7 +59,7 @@ using namespace clang;
 
 std::string getHashGitCommit( const llvm::StringRef path = "" )
 {
-	if ( optNoGit ) return "";
+	if ( opt::NoGit ) return "";
 
 	static std::string hash;
 	if ( !hash.empty( ) ) return hash;
@@ -120,6 +120,25 @@ namespace common {
 	}
 }    // namespace common
 
+// void se_translator( unsigned int code, EXCEPTION_POINTERS* pExp )
+// {
+// 	std::string exceptionMessage = "Caught SEH exception: ";
+//
+// 	// Извлечение кода исключения
+// 	exceptionMessage += "Code: 0x" + std::to_string( pExp->ExceptionRecord->ExceptionCode ) + ", ";
+//
+// 	// Адрес, по которому произошло исключение
+// 	exceptionMessage += "Address: " + std::to_string( ( uintptr_t )pExp->ExceptionRecord->ExceptionAddress ) + ", ";
+//
+// 	// Если это нарушение доступа, выводим дополнительные сведения
+// 	if ( pExp->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION ) {
+// 		exceptionMessage += "Access Type: " + std::to_string( pExp->ExceptionRecord->ExceptionInformation[ 0 ] ) + ", ";
+// 		exceptionMessage += "Access Address: " + std::to_string( ( uintptr_t )pExp->ExceptionRecord->ExceptionInformation[ 1 ] );
+// 	}
+//
+// 	throw std::runtime_error( exceptionMessage );
+// }
+
 class TypeBuilder
 {
 public:
@@ -169,23 +188,30 @@ public:
 			case Types::u8	   : return ctx_.UnsignedCharTy;
 			case Types::i16	   : return ctx_.ShortTy;
 			case Types::u16	   : return ctx_.UnsignedShortTy;
+
 			case Types::i32	   : return ctx_.IntTy;
 			case Types::u32	   : return ctx_.UnsignedIntTy;
-			case Types::i64	   : return ctx_.LongLongTy;
-			case Types::u64	   : return ctx_.UnsignedLongLongTy;
-			case Types::f32	   : return ctx_.FloatTy;
-			case Types::f64	   : return ctx_.DoubleTy;
-			case Types::string : return ctx_.getPointerType( ctx_.CharTy );
 
-			case Types::none   :
-			default		   : throw std::logic_error( "[builder] Unknown type" );
+			case Types::i64	   : return common::const_hash( opt::TargetArch ) == common::const_hash( "x64" ) ? ctx_.LongLongTy : ctx_.IntTy;
+			case Types::u64:
+				return common::const_hash( opt::TargetArch ) == common::const_hash( "x64" ) ? ctx_.UnsignedLongLongTy
+													    : ctx_.UnsignedIntTy;
+
+			case Types::f32	  : return ctx_.FloatTy;
+
+			case Types::f64	  : return common::const_hash( opt::TargetArch ) == common::const_hash( "x64" ) ? ctx_.DoubleTy : ctx_.FloatTy;
+
+			case Types::string: return ctx_.getPointerType( ctx_.CharTy );
+
+			case Types::none  :
+			default		  : throw std::logic_error( "[builder] Unknown type" );
 		}
 	}
 
 	Expr* BuildInitStatement( const Types tp, std::string_view init_state )
 	{
 
-		switch ( tp ) {	   // TODO: Autocorrect Redix (use ctre)
+		switch ( tp ) {
 			case Types::boolean: {
 
 				return CXXBoolLiteralExpr::Create( ctx_,
@@ -208,7 +234,13 @@ public:
 			}
 			case Types::u64:
 			case Types::i64: {
-				return clang::IntegerLiteral::Create( ctx_, llvm::APInt( 64, init_state, 10 ), GetType( tp ), SourceLocation( ) );
+				return clang::IntegerLiteral::Create(
+						ctx_,
+						llvm::APInt( common::const_hash( opt::TargetArch ) == common::const_hash( "x64" ) ? 64 : 32,
+							     init_state,
+							     10 ),
+						GetType( tp ),
+						SourceLocation( ) );
 			}
 			case Types::f32: {
 				float xfl;
@@ -278,25 +310,6 @@ namespace ConfParser {
 		std::string project_dir;
 	};
 
-	// uint32_t parse_version( const std::string_view& version_str )
-	// {
-	// 	// Регулярное выражение для парсинга строки вида "MAJOR.MINOR.PATCH"
-	// 	constexpr auto version_pattern = ctll::fixed_string{ R"((\d+)\.(\d+)\.(\d+))" };
-	//
-	// 	if ( auto match = ctre::match< version_pattern >( version_str ) ) {
-	// 		// Извлечение значений MAJOR, MINOR и PATCH
-	// 		int major = std::atoi( match.get< 1 >( ).to_view( ).data( ) );	  // группа 1
-	// 		int minor = std::atoi( match.get< 2 >( ).to_view( ).data( ) );	  // группа 2
-	// 		int patch = std::atoi( match.get< 3 >( ).to_view( ).data( ) );
-	//
-	// 		// Упаковка в uint32_t
-	// 		return VERSION_PACK( major, minor, patch );
-	// 	}
-	//
-	// 	// Возврат std::nullopt, если парсинг не удался
-	// 	return VERSION_PACK( 0, 0, 0 );
-	// }
-
 	uint32_t parse_version( const std::string_view& version_str )
 	{
 		llvm::Regex				version_pattern( R"((\d+)\.(\d+)\.(\d+))" );
@@ -335,7 +348,7 @@ namespace ConfParser {
 		auto str_qt = TypeBuilder( ctx ).GetType( "string" );
 		createVar( ctx, ns, "name", str_qt, TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::string, p.name ) );
 		createVar( ctx, ns, "description", str_qt, TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::string, p.desc ) );
-		if ( !optNoGit )
+		if ( !opt::NoGit )
 			createVar( ctx, ns, "git_hash", str_qt, TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::string, p.git_hash ) );
 		createVar( ctx,
 			   ns,
@@ -367,6 +380,8 @@ namespace ConfParser {
 			   "target",
 			   str_qt,
 			   TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::string, p.current_build_cmake_target ) );
+		createVar( ctx, ns, "system", str_qt, TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::string, opt::TargetSystem ) );
+		createVar( ctx, ns, "arch", str_qt, TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::string, opt::TargetArch ) );
 		createVar( ctx, ns, "mode", str_qt, TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::string, p.mode ) );
 		createVar( ctx, ns, "type", str_qt, TypeBuilder( ctx ).BuildInitStatement( TypeBuilder::Types::string, p.build_type ) );
 	}
@@ -410,12 +425,7 @@ namespace ConfParser {
 
 }    // namespace ConfParser
 
-#include <cmrc/cmrc.hpp>
-#include <filesystem>
-
-CMRC_DECLARE( fonts );
-
-void copytight_show( llvm::raw_string_ostream& os )
+void copytight_show( llvm::raw_ostream& os )
 {
 	os << R"(// This file was automatically generated by cth++ from a JSON configuration.
 // DO NOT MODIFY THIS FILE MANUALLY.
@@ -437,30 +447,99 @@ void copytight_show( llvm::raw_string_ostream& os )
 	os << "\n\n";
 }
 
+#include <stacktrace>
+
+#ifdef WIN32
+#	include <windows.h>
+
+// Переводчик SEH в C++ исключение
+
+void __se_translator( uint32_t code, EXCEPTION_POINTERS* pExp )
+
+{
+	std::string exceptionMessage;
+
+	switch ( code ) {
+		case EXCEPTION_ACCESS_VIOLATION:
+			exceptionMessage = "Access violation exception occurred!";
+			exceptionMessage += "\nAccess Type: " + std::to_string( pExp->ExceptionRecord->ExceptionInformation[ 0 ] );
+			exceptionMessage += "\nAccess Address: " + std::to_string( ( uintptr_t )pExp->ExceptionRecord->ExceptionInformation[ 1 ] );
+			break;
+
+		case EXCEPTION_ARRAY_BOUNDS_EXCEEDED: exceptionMessage = "Array bounds exceeded exception occurred!"; break;
+
+		case EXCEPTION_DATATYPE_MISALIGNMENT: exceptionMessage = "Datatype misalignment exception occurred!"; break;
+
+		case EXCEPTION_FLT_DENORMAL_OPERAND : exceptionMessage = "Floating-point denormal operand exception occurred!"; break;
+
+		case EXCEPTION_FLT_DIVIDE_BY_ZERO   : exceptionMessage = "Floating-point divide by zero exception occurred!"; break;
+
+		case EXCEPTION_FLT_INEXACT_RESULT   : exceptionMessage = "Floating-point inexact result exception occurred!"; break;
+
+		case EXCEPTION_FLT_INVALID_OPERATION: exceptionMessage = "Floating-point invalid operation exception occurred!"; break;
+
+		case EXCEPTION_FLT_OVERFLOW	    : exceptionMessage = "Floating-point overflow exception occurred!"; break;
+
+		case EXCEPTION_FLT_STACK_CHECK	    : exceptionMessage = "Floating-point stack check exception occurred!"; break;
+
+		case EXCEPTION_FLT_UNDERFLOW	    : exceptionMessage = "Floating-point underflow exception occurred!"; break;
+
+		case EXCEPTION_ILLEGAL_INSTRUCTION  : exceptionMessage = "Illegal instruction exception occurred!"; break;
+
+		case EXCEPTION_IN_PAGE_ERROR:
+			exceptionMessage = "In-page error exception occurred!";
+			exceptionMessage += "\nAccess Type: " + std::to_string( pExp->ExceptionRecord->ExceptionInformation[ 0 ] );
+			exceptionMessage += "\nFaulting Address: " + std::to_string( ( uintptr_t )pExp->ExceptionRecord->ExceptionInformation[ 1 ] );
+			exceptionMessage += "\nNTSTATUS Code: " + std::to_string( pExp->ExceptionRecord->ExceptionInformation[ 2 ] );
+			break;
+
+		case EXCEPTION_INT_DIVIDE_BY_ZERO      : exceptionMessage = "Integer divide by zero exception occurred!"; break;
+
+		case EXCEPTION_INT_OVERFLOW	       : exceptionMessage = "Integer overflow exception occurred!"; break;
+
+		case EXCEPTION_INVALID_DISPOSITION     : exceptionMessage = "Invalid disposition exception occurred!"; break;
+
+		case EXCEPTION_NONCONTINUABLE_EXCEPTION: exceptionMessage = "Noncontinuable exception occurred!"; break;
+
+		case EXCEPTION_PRIV_INSTRUCTION	       : exceptionMessage = "Privileged instruction exception occurred!"; break;
+
+		case EXCEPTION_SINGLE_STEP	       : exceptionMessage = "Single step exception occurred!"; break;
+
+		case EXCEPTION_STACK_OVERFLOW	       : exceptionMessage = "Stack overflow exception occurred!"; break;
+	}
+
+	exceptionMessage += "\n" + std::to_string( std::stacktrace::current( ) );
+
+	throw std::runtime_error( exceptionMessage );
+}
+
+#endif
+
 int main( int argc, char** argv )
 {
 
-	cl::SetVersionPrinter( []( auto& os ) {
-		{
-			os << "cth++ version 1.0.0\n";
-		}
-	} );
-	cl::AddExtraVersionPrinter( []( auto& os ) {
-		{
-			os << "cth++ version 1.0.0\n";
-		}
-	} );
+	_set_se_translator( &__se_translator );
 
-	cl::HideUnrelatedOptions( CthOption );
+	const auto cbVersion = []( auto& os ) { os << "cth++ version 1.0.0\n"; };
+	cl::SetVersionPrinter( cbVersion );
+	cl::AddExtraVersionPrinter( cbVersion );
+
+	cl::HideUnrelatedOptions( opt::CthOption );
 
 	cl::ParseCommandLineOptions( argc, argv );
+
+	switch ( common::const_hash( opt::TargetArch ) ) {
+		case common::const_hash( "x86" ): opt::TargetArch = "x86"; break;
+		case common::const_hash( "x64" ):
+		default				: opt::TargetArch = "x64"; break;
+	}
 
 	CompilerInstance*    ci		  = createCompilerInstance( );
 	ASTContext&	     context	  = ci->getASTContext( );
 	TranslationUnitDecl* global_scope = context.getTranslationUnitDecl( );
 
 	// Создание пространства имен
-	NamespaceDecl* ns_global_config = CreateNamespace( optGlobalNamespace, context, global_scope );
+	NamespaceDecl* ns_global_config = CreateNamespace( opt::GlobalNamespace, context, global_scope );
 
 	NamespaceDecl* namespaceProject = CreateNamespace( "project", context, ns_global_config );
 
@@ -468,26 +547,26 @@ int main( int argc, char** argv )
 
 	try {
 
-		std::ifstream file( optConfigFile );
+		std::ifstream file( opt::ConfigFile );
 		if ( !file ) {
-			llvm::errs( ) << "Error: file not found: " << optConfigFile << "\n";
+			llvm::errs( ) << "Error: file not found: " << opt::ConfigFile;
 			return -1;
 		}
 		auto json = json::parse( file );
 		proj	  = ConfParser::parse( json );
 
-		if ( !optWorkingDir.empty( ) ) proj.project_dir = optWorkingDir;
+		if ( !opt::WorkingDir.empty( ) ) proj.project_dir = opt::WorkingDir;
 		if ( proj.project_dir.empty( ) ) {
 			llvm::SmallVector< char, 256 > path_data_raw;
 			const auto		       errc = llvm::sys::fs::current_path( path_data_raw );
 			proj.project_dir		    = { path_data_raw.data( ), path_data_raw.size( ) };
 		}
 
-		if ( optDebug || optRelease ) proj.debug = optDebug && !optRelease;
-		if ( optDevelopment || optProduction ) proj.dev = optDevelopment && !optProduction;
-		if ( !optOutputPath.empty( ) ) proj.output_path = optOutputPath;
+		if ( opt::Debug || opt::Release ) proj.debug = opt::Debug && !opt::Release;
+		if ( opt::Development || opt::Production ) proj.dev = opt::Development && !opt::Production;
+		if ( !opt::OutputPath.empty( ) ) proj.output_path = opt::OutputPath;
 
-		proj.current_build_cmake_target = optCmakeTarget;
+		proj.current_build_cmake_target = opt::CmakeTarget;
 
 		proj.build_type = proj.debug ? "debug" : "release";
 		proj.mode	= proj.dev ? "development" : "production";
@@ -510,7 +589,7 @@ int main( int argc, char** argv )
 
 		langOpts.LangStd = LangStandard::lang_cxx23;
 
-		if ( auto lang = e_lang_t::unscoped_string_to_enum( "lang_" + optStd ); lang ) langOpts.LangStd = *lang;
+		if ( auto lang = e_lang_t::unscoped_string_to_enum( "lang_" + opt::Std ); lang ) langOpts.LangStd = *lang;
 
 		PrintingPolicy policy( langOpts );
 		policy.Bool    = 1;
@@ -518,24 +597,7 @@ int main( int argc, char** argv )
 
 		using namespace srilakshmikanthanp;
 
-		auto fonts_fs = cmrc::fonts::get_filesystem( );
-
-		auto flf_file_Ivrit = fonts_fs.open( "fonts/Ivrit.flf" );
-
-		auto flf_file_std = fonts_fs.open( "fonts/Standard.flf" );
-
-		auto x = llvm::sys::fs::getMainExecutable( *argv, &main );
-
-		const auto execdir = std::filesystem::path( x ).parent_path( );
-
-		if ( !llvm::sys::fs::exists( ( execdir / "Ivrit.flf" ).string( ) ) )
-			std::ofstream( execdir / "Ivrit.flf", std::ios::trunc | std::ios::binary | std::ios::out )
-					.write( flf_file_Ivrit.begin( ), flf_file_Ivrit.size( ) )
-					.flush( );
-		if ( !llvm::sys::fs::exists( ( execdir / "Standard.flf" ).string( ) ) )
-			std::ofstream( execdir / "Standard.flf", std::ios::trunc | std::ios::binary | std::ios::out )
-					.write( flf_file_std.begin( ), flf_file_std.size( ) )
-					.flush( );
+		const auto execdir = std::filesystem::path( llvm::sys::fs::getMainExecutable( *argv, &main ) ).parent_path( );
 
 		libfiglet::figlet figlet_copyright( libfiglet::flf_font::make_shared( ( execdir / "Ivrit.flf" ).string( ) ),
 						    libfiglet::full_width::make_shared( ) );
@@ -543,10 +605,15 @@ int main( int argc, char** argv )
 		libfiglet::figlet figlet_ProjectLogo( libfiglet::flf_font::make_shared( ( execdir / "Standard.flf" ).string( ) ),
 						      libfiglet::full_width::make_shared( ) );
 
-		std::string		 config_impl;
-		llvm::raw_string_ostream os( config_impl );
+		// std::string		 config_impl;
+		// llvm::raw_string_ostream os( config_impl );
 
-		if ( !optNoLogo ) llvm::outs( ) << "\n" << figlet_ProjectLogo( "cth++" ) << "\n";
+		llvm::sys::fs::create_directories( std::filesystem::path( proj.output_path ).parent_path( ).string( ) );
+
+		std::error_code	    ec;
+		llvm::raw_fd_stream os( proj.output_path, ec );
+
+		if ( !opt::NoLogo ) llvm::outs( ) << "\n" << figlet_ProjectLogo( "cth++" ) << "\n";
 
 		copytight_show( os );
 
@@ -561,20 +628,14 @@ int main( int argc, char** argv )
 
 		global_scope->print( os, policy );
 
-		llvm::sys::fs::create_directories( std::filesystem::path( proj.output_path ).parent_path( ).string( ) );
-
-		std::ofstream( proj.output_path, std::ios::out | std::ios::binary | std::ios::trunc )
-				.write( config_impl.data( ), config_impl.size( ) )
-				.flush( );
-
-		if ( optRewriteConfig ) {
+		if ( opt::RewriteConfig ) {
 			auto jp		    = json[ "project" ];
 			jp[ "working-dir" ] = proj.project_dir;
 			jp[ "output-path" ] = proj.output_path;
 			jp[ "debug" ]	    = proj.debug;
 			jp[ "dev" ]	    = proj.dev;
 
-			std::ofstream of( optConfigFile, std::ios::out | std::ios::binary | std::ios::trunc );
+			std::ofstream of( opt::ConfigFile, std::ios::out | std::ios::binary | std::ios::trunc );
 			// of << json;
 			json.dump( of, true );
 			of.flush( );
@@ -585,6 +646,8 @@ int main( int argc, char** argv )
 
 	} catch ( const std::exception& e ) {
 		llvm::errs( ) << "Error: " << e.what( ) << "\n";
+		llvm::errs( ) << "stack trace:\n";
+		std::cout << std::stacktrace::current( ) << "\n";
 		return -1;
 	}
 

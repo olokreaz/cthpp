@@ -37,6 +37,7 @@ if ( ${WIN32} )
 		/openmp
 		/FS
 		/VERBOSE
+		
 		)
 	
 	add_link_options( /VERBOSE )
@@ -72,15 +73,9 @@ set_target_properties( ${PROJECT_NAME} PROPERTIES
                        MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL"
                        )
 
-find_package( ctre CONFIG REQUIRED )
-
-
 find_package( unofficial-libgit2 CONFIG REQUIRED )
 
-find_package( libassert CONFIG REQUIRED )
-
 find_package( jsoncons CONFIG REQUIRED )
-find_package( CmakeRC CONFIG REQUIRED )
 
 find_package( LLVM CONFIG REQUIRED )
 find_package( Clang CONFIG REQUIRED )
@@ -105,16 +100,10 @@ include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/third-party/libfiglet/src )
 
 set( CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL" )
 
-set( CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /Od" )
-set( CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O3" )
-
 
 target_link_libraries( ${PROJECT_NAME} PRIVATE
                        jsoncons
-                       ctre::ctre
                        
-                       
-                       #frozen::frozen frozen::frozen-headers
                        unofficial::libgit2::libgit2
                        
                        clangTooling
@@ -136,13 +125,3 @@ target_link_libraries( ${PROJECT_NAME} PRIVATE
                        clangToolingSyntax
                        clangTransformer
                        )
-
-cmrc_add_resource_library( internal_ascii_fonts_rc
-                           NAMESPACE fonts
-                           WHENCE ${CMAKE_CURRENT_SOURCE_DIR}/third-party/libfiglet/assets/fonts
-                           PREFIX fonts
-                           ${CMAKE_CURRENT_SOURCE_DIR}/third-party/libfiglet/assets/fonts/Standard.flf
-                           ${CMAKE_CURRENT_SOURCE_DIR}/third-party/libfiglet/assets/fonts/Ivrit.flf
-                           )
-
-target_link_libraries( ${PROJECT_NAME} PRIVATE internal_ascii_fonts_rc )
