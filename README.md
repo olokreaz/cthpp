@@ -1,8 +1,7 @@
 # CTH++
 
 ## Introduction
-
-### What is CTH++
+Config Compile-Time Header++ (CTH++) is a tool for automatically generating C++ configuration headers at compile-time using JSON data and constexpr. It supports various build modes and offers flexible project configuration.
 
 ## Usage
 
@@ -41,14 +40,10 @@ $ cth++ --output=path/to/output --config=path/to/config.json
 		"name": "Example",
 		"desc": "Example Example Example",
 		"version": "1.1.1",
-		"debug": true,
-		// --dbg true / --rel false
-		"dev": true,
-		// --development / --prodaction
-		"output-path": "path/to/output",
-		// ignored use override argumend --output
-		"project-dir": "path/to/project/dir"
-		// argument --working
+		"debug": true, // --dbg true / --rel false
+		"dev": true, // --development / --prodaction
+		"output-path": "path/to/output", // ignored use override argumend --output
+		"project-dir": "path/to/project/dir" // argument --working
 	},
 	"config": {
 		"client": {
