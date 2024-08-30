@@ -73,21 +73,6 @@ $ cth++ --output=path/to/output --config=path/to/config.json
 
 ```c++
 // path/to/output
-/*
-  _____                                      _        
- | ____| __  __   __ _   _ __ ___    _ __   | |   ___ 
- |  _|   \ \/ /  / _` | | '_ ` _ \  | '_ \  | |  / _ \
- | |___   >  <  | (_| | | | | | | | | |_) | | | |  __/
- |_____| /_/\_\  \__,_| |_| |_| |_| | .__/  |_|  \___|
-                                    |_|               
-*/
-
-#pragma once
-
-#define VERSION_PACK(MAJOR, MINOR, PATCH) \
-    ( ( ( MAJOR ) << 16 ) | ( ( MINOR ) << 8 ) | ( PATCH ) )
-
-
 namespace config {
     namespace project {
         constexpr char *name = "Example";
