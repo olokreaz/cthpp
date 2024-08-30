@@ -6,23 +6,33 @@ Config Compile-Time Header++ (CTH++) is a tool for automatically generating C++ 
 ## Usage
 
 ```text
-USAGE: cth++ [options]
+USAGE: cth++.exe [options]
+
 OPTIONS:
+
 Generic Options:
+
   --help                                - Display available options (--help-hidden for more)
   --help-list                           - Display list of available options (--help-list-hidden for more)
   --version                             - Display the version of this program
+
 cth++ options:
+
   --cmake-target-current-build=<target> - Specify the current build target
   --config=<path>                       - Path to the JSON configuration file
   --dbg                                 - Set build mode to debug
-  --development                         - Set build mode to development
+  --dev                                 - Set build mode to development
   --namespace=<name>                    - Set the global namespace name
+  --no-git                              - Disable git hash
+  --no-logo                             - Disable logo
   --output=<path>                       - Output path
-  --prodaction                          - Set build mode to production
+  --prod                                - Set build mode to production
   --rel                                 - Set build mode to release
+  --rewrite-config                      - Rewrite the configuration file
   --std=<cxx standard>                  - Specify the C++ standard
-  --working=<path>                      - Set the project directory
+  --target-arch=<arch>                  - Specify the target architecture
+  --target-system=<system>              - Specify the target system
+  --working-dir=<path>                  - Set the project directory
 ```
 
 # Example
