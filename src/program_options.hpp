@@ -81,6 +81,9 @@ namespace opt {
 	static cl::opt< bool > NoLogo( "no-logo", cl::desc( "Disable logo" ), cl::init( false ), cl::cat( CthOption ) );
 
 	static cl::opt< bool > NoGit( "no-git", cl::desc( "Disable git hash" ), cl::init( false ), cl::cat( CthOption ) );
+
+	static cl::opt< bool > CreateConfig( "create", cl::desc( "Create a new configuration file" ), cl::init( false ) );
+	static cl::opt< bool > WithCmake( "cmake", cl::desc( "Include CMake target in the configuration file" ), cl::init( false ) );
 }    // namespace opt
 
 #endif	  //PROGRAM_OPTIONS_HPP
