@@ -1,28 +1,40 @@
 # CTH++
 
 ## Introduction
-Config Compile-Time Header++ (CTH++) is a tool for automatically generating C++ configuration headers at compile-time using JSON data and constexpr. It supports various build modes and offers flexible project configuration.
+
+Config Compile-Time Header++ (CTH++) is a tool for automatically generating C++ configuration headers at compile-time
+using JSON data and constexpr. It supports various build modes and offers flexible project configuration.
 
 ## Usage
 
 ```text
-USAGE: cth++ [options]
+USAGE: cth++.exe [options]
+
 OPTIONS:
+
 Generic Options:
+
   --help                                - Display available options (--help-hidden for more)
   --help-list                           - Display list of available options (--help-list-hidden for more)
   --version                             - Display the version of this program
+
 cth++ options:
+
   --cmake-target-current-build=<target> - Specify the current build target
   --config=<path>                       - Path to the JSON configuration file
   --dbg                                 - Set build mode to debug
-  --development                         - Set build mode to development
+  --dev                                 - Set build mode to development
   --namespace=<name>                    - Set the global namespace name
+  --no-git                              - Disable git hash
+  --no-logo                             - Disable logo
   --output=<path>                       - Output path
-  --prodaction                          - Set build mode to production
+  --prod                                - Set build mode to production
   --rel                                 - Set build mode to release
+  --rewrite-config                      - Rewrite the configuration file
   --std=<cxx standard>                  - Specify the C++ standard
-  --working=<path>                      - Set the project directory
+  --target-arch=<arch>                  - Specify the target architecture
+  --target-system=<system>              - Specify the target system
+  --working-dir=<path>                  - Set the project directory
 ```
 
 # Example
@@ -40,10 +52,14 @@ $ cth++ --output=path/to/output --config=path/to/config.json
 		"name": "Example",
 		"desc": "Example Example Example",
 		"version": "1.1.1",
-		"debug": true, // --dbg true / --rel false
-		"dev": true, // --development / --prodaction
-		"output-path": "path/to/output", // ignored use override argumend --output
-		"project-dir": "path/to/project/dir" // argument --working
+		"debug": true,
+		// --dbg true / --rel false
+		"dev": true,
+		// --development / --prodaction
+		"output-path": "path/to/output",
+		// ignored use override argumend --output
+		"project-dir": "path/to/project/dir"
+		// argument --working
 	},
 	"config": {
 		"client": {
@@ -73,21 +89,6 @@ $ cth++ --output=path/to/output --config=path/to/config.json
 
 ```c++
 // path/to/output
-/*
-  _____                                      _        
- | ____| __  __   __ _   _ __ ___    _ __   | |   ___ 
- |  _|   \ \/ /  / _` | | '_ ` _ \  | '_ \  | |  / _ \
- | |___   >  <  | (_| | | | | | | | | |_) | | | |  __/
- |_____| /_/\_\  \__,_| |_| |_| |_| | .__/  |_|  \___|
-                                    |_|               
-*/
-
-#pragma once
-
-#define VERSION_PACK(MAJOR, MINOR, PATCH) \
-    ( ( ( MAJOR ) << 16 ) | ( ( MINOR ) << 8 ) | ( PATCH ) )
-
-
 namespace config {
     namespace project {
         constexpr char *name = "Example";
