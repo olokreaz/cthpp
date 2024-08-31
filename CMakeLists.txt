@@ -1,5 +1,5 @@
 cmake_minimum_required( VERSION 3.22 )
-project( cth++ C CXX )
+project( cthpp C CXX )
 
 set( CMAKE_CXX_STANDARD 23 )
 set( CMAKE_EXPORT_COMPILE_COMMANDS ON )
@@ -28,7 +28,7 @@ if ( ${WIN32} )
 	add_compile_options(
 		/utf-8
 		/MP
-		/EHsc
+		/EHa
 		/GS
 		/GF
 		/GR
@@ -80,6 +80,9 @@ find_package( jsoncons CONFIG REQUIRED )
 find_package( LLVM CONFIG REQUIRED )
 find_package( Clang CONFIG REQUIRED )
 
+find_package( fmt CONFIG REQUIRED )
+
+
 list( APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}" )
 message( STATUS "LLVM_CMAKE_DIR: ${LLVM_CMAKE_DIR}" )
 
@@ -105,6 +108,8 @@ target_link_libraries( ${PROJECT_NAME} PRIVATE
                        jsoncons
                        
                        unofficial::libgit2::libgit2
+                       
+                       fmt::fmt-header-only
                        
                        clangTooling
                        clangBasic
